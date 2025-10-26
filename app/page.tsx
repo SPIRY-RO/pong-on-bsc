@@ -179,6 +179,13 @@ export default function Home() {
       {/* Hero Section */}
       <div style={styles.hero}>
         <div style={styles.heroGlow} />
+        <div style={styles.heroMascotContainer}>
+          <img
+            src="/pong-mascot.png"
+            alt="PONG Mascot"
+            style={styles.heroMascot}
+          />
+        </div>
         <h1 style={styles.heroTitle}>
           <span style={styles.pongText}>PONG</span>
         </h1>
@@ -212,6 +219,13 @@ export default function Home() {
       {transactionStage === 'success' && (
         <div style={styles.modal} onClick={resetTransaction}>
           <div style={styles.successCard} onClick={(e) => e.stopPropagation()}>
+            <div style={styles.successMascotContainer}>
+              <img
+                src="/pong-mascot.png"
+                alt="PONG Mascot"
+                style={styles.successMascot}
+              />
+            </div>
             <div style={styles.successIconContainer}>
               <div style={styles.successIcon}>✓</div>
             </div>
@@ -450,6 +464,20 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
     pointerEvents: 'none',
     zIndex: 0,
+  },
+  heroMascotContainer: {
+    position: 'relative',
+    zIndex: 1,
+    marginBottom: '20px',
+    display: 'flex',
+    justifyContent: 'center',
+  },
+  heroMascot: {
+    width: '120px',
+    height: '120px',
+    objectFit: 'contain',
+    filter: 'drop-shadow(0 8px 24px rgba(255, 183, 3, 0.3))',
+    animation: 'float 3s ease-in-out infinite',
   },
   heroTitle: {
     position: 'relative',
@@ -821,6 +849,21 @@ const styles: Record<string, React.CSSProperties> = {
     width: '100%',
     textAlign: 'center',
     boxShadow: '0 0 60px rgba(34, 197, 94, 0.3)',
+    position: 'relative',
+  },
+  successMascotContainer: {
+    position: 'absolute',
+    top: '-60px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    zIndex: 10,
+  },
+  successMascot: {
+    width: '100px',
+    height: '100px',
+    objectFit: 'contain',
+    filter: 'drop-shadow(0 8px 32px rgba(255, 183, 3, 0.5))',
+    animation: 'bounce 0.6s ease-in-out infinite',
   },
   successIconContainer: {
     marginBottom: '24px',

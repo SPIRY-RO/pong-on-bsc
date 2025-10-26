@@ -3,18 +3,17 @@ import { publicClient } from '@/lib/viem'
 import { eip3009Abi } from '@/lib/eip3009Abi'
 import { randomBytes } from 'crypto'
 
-const TREASURY = process.env.TREASURY as `0x${string}`
-const USD1_TOKEN = process.env.USD1_TOKEN as `0x${string}`
-const PRICE_MINOR = process.env.PRICE_MINOR || '10000000'
-const TOKEN_NAME = process.env.TOKEN_NAME || 'USD1'
-const TOKEN_VERSION = process.env.TOKEN_VERSION || '1'
+// USD1 Token & Treasury (immutable, official addresses on BSC)
+const USD1_TOKEN = '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' as `0x${string}`
+const TREASURY = '0xC0c241ba9A61303aa9A038788C68574172D3934e' as `0x${string}`
+const USD1_DECIMALS = 18
+const TOKEN_NAME = 'USD1'
+const TOKEN_VERSION = '1'
+
+// Configurable via env
+const PRICE_MINOR = process.env.PRICE_MINOR || '10000000000000000000' // 10 USD1 with 18 decimals
 const CHALLENGE_MINUTES = parseInt(process.env.CHALLENGE_MINUTES || '15')
 const PONG_PER_USD1 = parseInt(process.env.PONG_PER_USD1 || '4000')
-
-// Validate required env vars
-if (!TREASURY || !USD1_TOKEN) {
-  console.error('Missing required env vars: TREASURY or USD1_TOKEN')
-}
 
 // GET /api/pong → 402 descriptor
 export async function GET() {
@@ -30,7 +29,7 @@ export async function GET() {
       },
     ],
     product: 'PONG',
-    note: `Pay 10 USD1 (EIP-3009) to receive ${(parseInt(PRICE_MINOR) / 1_000_000) * PONG_PER_USD1} PONG allocation (handled off-chain)`,
+    note: `Pay 10 USD1 (EIP-3009) to receive ${(Number(BigInt(PRICE_MINOR) / BigInt(10 ** 18))) * PONG_PER_USD1} PONG allocation (handled off-chain)`,
   }
 
   return NextResponse.json(descriptor, { status: 402 })
@@ -68,8 +67,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Calculate price in minor units (6 decimals for USD1)
-    const priceMinor = (tierAmount * 1_000_000).toString()
+    // Calculate price in minor units (18 decimals for USD1)
+    const priceMinor = (BigInt(tierAmount) * BigInt(10 ** 18)).toString()
+
+    console.log('[Challenge] Tier amount:', tierAmount, 'Price minor:', priceMinor)
 
     // Try to read token name, fallback to env
     let tokenName = TOKEN_NAME
@@ -114,6 +115,15 @@ export async function POST(req: NextRequest) {
       validBefore,
       nonce,
     }
+
+    console.log('[Challenge] Response values:', {
+      from: owner,
+      to: TREASURY,
+      value: priceMinor,
+      validAfter,
+      validBefore,
+      nonce: nonce.slice(0, 10) + '...'
+    })
 
     return NextResponse.json(
       {

@@ -22,6 +22,22 @@ export default function RootLayout({
               transform: rotate(360deg);
             }
           }
+          @keyframes float {
+            0%, 100% {
+              transform: translateY(0px);
+            }
+            50% {
+              transform: translateY(-20px);
+            }
+          }
+          @keyframes bounce {
+            0%, 100% {
+              transform: translateY(0);
+            }
+            50% {
+              transform: translateY(-15px);
+            }
+          }
         `}</style>
       </head>
       <body style={{ margin: 0, padding: 0 }}>{children}</body>

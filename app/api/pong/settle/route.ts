@@ -2,9 +2,13 @@ import { NextRequest, NextResponse } from 'next/server'
 import { publicClient, getWalletClient } from '@/lib/viem'
 import { eip3009Abi } from '@/lib/eip3009Abi'
 
-const TREASURY = process.env.TREASURY as `0x${string}`
-const USD1_TOKEN = process.env.USD1_TOKEN as `0x${string}`
-const PRICE_MINOR = process.env.PRICE_MINOR || '10000000'
+// USD1 Token & Treasury (immutable, official addresses on BSC)
+const USD1_TOKEN = '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' as `0x${string}`
+const TREASURY = '0xC0c241ba9A61303aa9A038788C68574172D3934e' as `0x${string}`
+const USD1_DECIMALS = 18
+
+// Configurable via env
+const PRICE_MINOR = process.env.PRICE_MINOR || '10000000000000000000' // 10 USD1 with 18 decimals
 const PONG_PER_USD1 = parseInt(process.env.PONG_PER_USD1 || '4000')
 
 export async function POST(req: NextRequest) {
@@ -32,12 +36,16 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Validate value - must be 1, 5, or 10 USD1 (in minor units with 6 decimals)
-    const validValues = ['1000000', '5000000', '10000000']
+    // Validate value - must be 1, 5, or 10 USD1 (in minor units with 18 decimals)
+    const validValues = [
+      '1000000000000000000',  // 1 USD1
+      '5000000000000000000',  // 5 USD1
+      '10000000000000000000', // 10 USD1
+    ]
     if (!validValues.includes(value)) {
       console.error('[Settle] Invalid value:', { value, validValues })
       return NextResponse.json(
-        { error: `Invalid value. Expected 1, 5, or 10 USD1 (1000000, 5000000, or 10000000 in minor units)` },
+        { error: `Invalid value. Expected 1, 5, or 10 USD1 (with 18 decimals)` },
         { status: 422 }
       )
     }
@@ -85,8 +93,8 @@ export async function POST(req: NextRequest) {
     // Wait for transaction confirmation
     await publicClient.waitForTransactionReceipt({ hash })
 
-    // Calculate PONG allocation based on actual value transferred
-    const allocationPONG = (parseInt(value) / 1_000_000) * PONG_PER_USD1
+    // Calculate PONG allocation based on actual value transferred (18 decimals)
+    const allocationPONG = (Number(BigInt(value) / BigInt(10 ** 18))) * PONG_PER_USD1
 
     return NextResponse.json(
       {
@@ -98,18 +106,46 @@ export async function POST(req: NextRequest) {
       { status: 201 }
     )
   } catch (error: any) {
-    console.error('Settlement error:', error)
+    console.error('[Settle] Error:', error)
+    console.error('[Settle] Error details:', {
+      message: error.message,
+      cause: error.cause,
+      shortMessage: error.shortMessage,
+      details: error.details,
+      metaMessages: error.metaMessages,
+    })
 
     // Handle specific errors
-    if (error.message?.includes('signature')) {
+    if (error.message?.includes('signature') || error.message?.includes('invalid signer')) {
       return NextResponse.json(
-        { error: 'Invalid signature' },
+        { error: 'Invalid signature or unauthorized signer', details: error.shortMessage || error.message },
         { status: 422 }
       )
     }
 
+    if (error.message?.includes('nonce')) {
+      return NextResponse.json(
+        { error: 'Nonce already used or invalid', details: error.shortMessage || error.message },
+        { status: 422 }
+      )
+    }
+
+    if (error.message?.includes('insufficient')) {
+      return NextResponse.json(
+        { error: 'Insufficient balance or gas', details: error.shortMessage || error.message },
+        { status: 400 }
+      )
+    }
+
+    if (error.message?.includes('execution reverted')) {
+      return NextResponse.json(
+        { error: 'Contract execution reverted', details: error.shortMessage || error.message },
+        { status: 400 }
+      )
+    }
+
     return NextResponse.json(
-      { error: 'Settlement failed', details: error.message },
+      { error: 'Settlement failed', details: error.shortMessage || error.message },
       { status: 400 }
     )
   }
