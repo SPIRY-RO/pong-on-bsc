@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { publicClient, walletClient } from '@/lib/viem'
+import { publicClient, getWalletClient } from '@/lib/viem'
 import { eip3009Abi } from '@/lib/eip3009Abi'
 
 const TREASURY = process.env.TREASURY as `0x${string}`
@@ -46,6 +46,7 @@ export async function POST(req: NextRequest) {
     }
 
     // Execute transferWithAuthorization
+    const walletClient = getWalletClient()
     const hash = await walletClient.writeContract({
       address: USD1_TOKEN,
       abi: eip3009Abi,

@@ -70,7 +70,8 @@ export default function Home() {
         body: JSON.stringify({ owner: account }),
       })
 
-      if (!challengeRes.ok) {
+      // x402 protocol: 402 status is expected for payment challenges
+      if (challengeRes.status !== 402) {
         const err = await challengeRes.json()
         throw new Error(err.error || 'Challenge request failed')
       }
@@ -119,7 +120,7 @@ export default function Home() {
         }),
       })
 
-      if (!settleRes.ok) {
+      if (settleRes.status !== 201) {
         const err = await settleRes.json()
         throw new Error(err.error || 'Settlement failed')
       }

@@ -4,7 +4,7 @@ A Vercel-ready Next.js app implementing x402 paywall with EIP-3009 (gasless tran
 
 ## Features
 
-- **x402 Protocol**: Standard HTTP 402 payment descriptor and challenge flow
+- **x402 Protocol**: Standard HTTP 402 payment descriptor and challenge flow (402 = "Payment Required" is expected, not an error!)
 - **EIP-3009**: TransferWithAuthorization for gasless payments (payer only signs, facilitator submits)
 - **Dark Minimal UI**: Inspired by peng.observer aesthetic
 - **Stateless**: No database, no persistence—pure API logic
@@ -26,28 +26,41 @@ POST /api/pong/settle  → 201 execute transfer, return txHash + allocation
 npm install
 ```
 
-### 2. Configure environment
+### 2. Configure environment (REQUIRED)
 
-Copy `.env.example` to `.env.local` and fill in:
+**IMPORTANT:** You must create `.env.local` before running the app.
 
 ```bash
 cp .env.example .env.local
 ```
 
-**Required variables:**
+Edit `.env.local` and fill in these **required** variables:
 
-- `FACILITATOR_PK`: Private key of wallet that will submit transactions (must have BNB for gas)
-- `TREASURY`: Address to receive USD1 payments
+- `TREASURY`: Address to receive USD1 payments (e.g., `0xYourTreasuryAddress`)
 - `USD1_TOKEN`: EIP-3009 compliant token contract address on BNB Chain
-- `RPC_URL`: BNB Chain RPC endpoint (default: https://bsc-dataseed.binance.org)
+- `FACILITATOR_PK`: Private key of wallet that will submit transactions (must have BNB for gas)
 
-### 3. Run development server
+Optional variables (have sensible defaults):
+
+- `RPC_URL`: BNB Chain RPC endpoint (default: https://bsc-dataseed.binance.org)
+- `PRICE_MINOR`: Price in token minor units (default: 10000000 = 10 USD1)
+- `TOKEN_NAME`: Token name for EIP-712 (default: USD1)
+- `CHALLENGE_MINUTES`: Challenge validity duration (default: 15)
+- `PONG_PER_USD1`: Allocation ratio (default: 4000)
+
+### 3. Verify configuration
 
 ```bash
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000)
+Check your config at [http://localhost:3000/api/health](http://localhost:3000/api/health)
+
+You should see all required env vars marked with ✅ and `"ready": true`.
+
+### 4. Test the app
+
+Open [http://localhost:3000](http://localhost:3000) and connect your wallet.
 
 ## Deployment
 
@@ -63,6 +76,27 @@ vercel --prod
 ```
 
 ## API Examples
+
+### Check configuration
+
+```bash
+curl http://localhost:3000/api/health
+```
+
+Response:
+
+```json
+{
+  "status": "ok",
+  "env": {
+    "TREASURY": "✅ Set",
+    "USD1_TOKEN": "✅ Set",
+    "FACILITATOR_PK": "✅ Set",
+    ...
+  },
+  "ready": true
+}
+```
 
 ### Get payment descriptor
 
@@ -173,6 +207,25 @@ Response (201):
 - viem (Ethereum library)
 - BNB Chain (chainId 56)
 - EIP-3009 (TransferWithAuthorization)
+
+## Troubleshooting
+
+### "Failed to load resource: 402" in browser console
+
+**This is normal!** HTTP 402 means "Payment Required" and is the correct response for x402 payment challenges. The browser's dev tools flag it as red, but it's working as intended. The app handles 402 responses correctly.
+
+### Challenge request fails
+
+- Check `/api/health` to verify all env vars are set
+- Ensure `TREASURY` and `USD1_TOKEN` are valid addresses
+- Verify your RPC endpoint is accessible
+
+### Settlement fails
+
+- Make sure `FACILITATOR_PK` wallet has BNB for gas
+- Verify the token contract supports EIP-3009 `transferWithAuthorization`
+- Check that the user has approved sufficient USD1 allowance
+- Ensure the challenge hasn't expired (15 minutes default)
 
 ## License
 

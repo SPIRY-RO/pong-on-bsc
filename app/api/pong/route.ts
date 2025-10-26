@@ -11,6 +11,11 @@ const TOKEN_VERSION = process.env.TOKEN_VERSION || '1'
 const CHALLENGE_MINUTES = parseInt(process.env.CHALLENGE_MINUTES || '15')
 const PONG_PER_USD1 = parseInt(process.env.PONG_PER_USD1 || '4000')
 
+// Validate required env vars
+if (!TREASURY || !USD1_TOKEN) {
+  console.error('Missing required env vars: TREASURY or USD1_TOKEN')
+}
+
 // GET /api/pong → 402 descriptor
 export async function GET() {
   const descriptor = {
@@ -34,6 +39,14 @@ export async function GET() {
 // POST /api/pong → 402 EIP-3009 challenge
 export async function POST(req: NextRequest) {
   try {
+    // Check env vars first
+    if (!TREASURY || !USD1_TOKEN) {
+      return NextResponse.json(
+        { error: 'Server configuration error: Missing TREASURY or USD1_TOKEN env vars' },
+        { status: 500 }
+      )
+    }
+
     const body = await req.json()
     const { owner } = body
 
