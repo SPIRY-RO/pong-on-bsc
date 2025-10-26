@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect, useCallback } from 'react'
 
 const CHAIN_ID = 56
 const EXPECTED_CHAIN_ID = '0x38' // 56 in hex
@@ -27,6 +27,16 @@ export default function Home() {
   const addStatus = (msg: string) => {
     setStatus((prev) => [...prev, `${new Date().toLocaleTimeString()} → ${msg}`])
   }
+
+  // Debug: monitor account changes
+  useEffect(() => {
+    console.log('[Effect] Account changed to:', account || 'empty')
+    if (account) {
+      console.log('[Effect] Account is set! UI should show pricing tiers now.')
+    } else {
+      console.log('[Effect] No account, UI should show connect button.')
+    }
+  }, [account])
 
   const connectWallet = async () => {
     try {
@@ -67,34 +77,44 @@ export default function Home() {
         }
       }
 
-      console.log('[Wallet] Setting account:', accounts[0])
-      setAccount(accounts[0])
-      addStatus(`✅ Connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`)
+      const selectedAccount = accounts[0].toLowerCase()
+      console.log('[Wallet] Setting account:', selectedAccount)
+      setAccount(selectedAccount)
+      addStatus(`✅ Connected: ${selectedAccount.slice(0, 6)}...${selectedAccount.slice(-4)}`)
       console.log('[Wallet] Connection successful!')
+      console.log('[Wallet] Account state should now be:', selectedAccount)
     } catch (error) {
       console.error('[Wallet] Connection error:', error)
       addStatus(`❌ Connection failed: ${(error as Error).message}`)
     }
   }
 
-  const pay = async (tierAmount: number) => {
+  const pay = useCallback(async (tierAmount: number) => {
+    const callId = Math.random().toString(36).substring(7)
+    console.log(`[Pay:${callId}] ===== FUNCTION CALLED =====`)
+    console.log(`[Pay:${callId}] Tier:`, tierAmount)
+    console.log(`[Pay:${callId}] Account:`, account ? 'set' : 'MISSING')
+    console.log(`[Pay:${callId}] Loading:`, loading)
+    console.log(`[Pay:${callId}] InProgress:`, paymentInProgressRef.current)
+
     if (!account) {
+      console.error(`[Pay:${callId}] No account, aborting`)
       addStatus('❌ Connect wallet first')
       return
     }
 
     // Prevent double-click spam with ref (bulletproof)
     if (paymentInProgressRef.current) {
-      console.warn('[Pay] Payment already in progress, ignoring...')
+      console.warn(`[Pay:${callId}] Payment already in progress, IGNORING`)
       return
     }
 
     if (loading) {
-      console.warn('[Pay] Already loading, ignoring...')
+      console.warn(`[Pay:${callId}] Already loading, IGNORING`)
       return
     }
 
-    console.log('[Pay] Starting payment for', tierAmount, 'USD1')
+    console.log(`[Pay:${callId}] ✅ PROCEEDING with payment`)
     paymentInProgressRef.current = true
 
     setLoading(true)
@@ -194,7 +214,7 @@ export default function Home() {
       paymentInProgressRef.current = false
       console.log('[Pay] Payment process ended')
     }
-  }
+  }, [account, loading])
 
   const resetTransaction = () => {
     setTransactionStage('idle')
@@ -205,6 +225,13 @@ export default function Home() {
     paymentInProgressRef.current = false
     console.log('[Reset] Transaction reset')
   }
+
+  // Debug logging
+  console.log('[Render] State:', {
+    account: account ? account.slice(0, 10) + '...' : 'none',
+    transactionStage,
+    loading
+  })
 
   return (
     <div style={styles.container}>
@@ -347,7 +374,13 @@ export default function Home() {
                       ...(tier.popular ? styles.tierButtonPopular : {}),
                       ...(loading ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
                     }}
-                    onClick={() => pay(tier.usd1)}
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      if (!loading && !paymentInProgressRef.current) {
+                        pay(tier.usd1)
+                      }
+                    }}
                     disabled={loading}
                   >
                     {loading && selectedTier === tier.usd1 ? 'Processing...' : 'Select'}
