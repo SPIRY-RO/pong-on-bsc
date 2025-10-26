@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useRef } from 'react'
 
 const CHAIN_ID = 56
 const EXPECTED_CHAIN_ID = '0x38' // 56 in hex
@@ -22,6 +22,7 @@ export default function Home() {
   const [selectedTier, setSelectedTier] = useState<number | null>(null)
   const [transactionStage, setTransactionStage] = useState<TransactionStage>('idle')
   const [allocatedPong, setAllocatedPong] = useState<number>(0)
+  const paymentInProgressRef = useRef(false)
 
   const addStatus = (msg: string) => {
     setStatus((prev) => [...prev, `${new Date().toLocaleTimeString()} → ${msg}`])
@@ -29,26 +30,36 @@ export default function Home() {
 
   const connectWallet = async () => {
     try {
+      console.log('[Wallet] Starting connection...')
+
       if (!window.ethereum) {
+        console.error('[Wallet] MetaMask not found')
         addStatus('❌ MetaMask not found')
+        alert('MetaMask not found! Please install MetaMask extension.')
         return
       }
 
+      console.log('[Wallet] Requesting accounts...')
       const accounts = await window.ethereum.request({
         method: 'eth_requestAccounts',
       })
+      console.log('[Wallet] Accounts:', accounts)
 
       const chainId = await window.ethereum.request({ method: 'eth_chainId' })
+      console.log('[Wallet] Current chainId:', chainId, 'Expected:', EXPECTED_CHAIN_ID)
 
       if (chainId !== EXPECTED_CHAIN_ID) {
+        console.log('[Wallet] Wrong network, switching...')
         addStatus('⚠️  Wrong network. Switching to BNB Chain...')
         try {
           await window.ethereum.request({
             method: 'wallet_switchEthereumChain',
             params: [{ chainId: EXPECTED_CHAIN_ID }],
           })
+          console.log('[Wallet] Switched to BNB Chain')
           addStatus('✅ Switched to BNB Chain')
         } catch (switchError: any) {
+          console.error('[Wallet] Switch error:', switchError)
           if (switchError.code === 4902) {
             addStatus('❌ BNB Chain not found in wallet. Please add it manually.')
           }
@@ -56,9 +67,12 @@ export default function Home() {
         }
       }
 
+      console.log('[Wallet] Setting account:', accounts[0])
       setAccount(accounts[0])
       addStatus(`✅ Connected: ${accounts[0].slice(0, 6)}...${accounts[0].slice(-4)}`)
+      console.log('[Wallet] Connection successful!')
     } catch (error) {
+      console.error('[Wallet] Connection error:', error)
       addStatus(`❌ Connection failed: ${(error as Error).message}`)
     }
   }
@@ -68,6 +82,20 @@ export default function Home() {
       addStatus('❌ Connect wallet first')
       return
     }
+
+    // Prevent double-click spam with ref (bulletproof)
+    if (paymentInProgressRef.current) {
+      console.warn('[Pay] Payment already in progress, ignoring...')
+      return
+    }
+
+    if (loading) {
+      console.warn('[Pay] Already loading, ignoring...')
+      return
+    }
+
+    console.log('[Pay] Starting payment for', tierAmount, 'USD1')
+    paymentInProgressRef.current = true
 
     setLoading(true)
     setStatus([])
@@ -163,6 +191,8 @@ export default function Home() {
       }
     } finally {
       setLoading(false)
+      paymentInProgressRef.current = false
+      console.log('[Pay] Payment process ended')
     }
   }
 
@@ -172,6 +202,8 @@ export default function Home() {
     setStatus([])
     setSelectedTier(null)
     setAllocatedPong(0)
+    paymentInProgressRef.current = false
+    console.log('[Reset] Transaction reset')
   }
 
   return (
@@ -313,6 +345,7 @@ export default function Home() {
                     style={{
                       ...styles.tierButton,
                       ...(tier.popular ? styles.tierButtonPopular : {}),
+                      ...(loading ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
                     }}
                     onClick={() => pay(tier.usd1)}
                     disabled={loading}

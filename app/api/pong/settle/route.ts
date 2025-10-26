@@ -66,45 +66,33 @@ export async function POST(req: NextRequest) {
     // Execute transferWithAuthorization
     const walletClient = getWalletClient()
 
-    const txArgs: readonly [
-      `0x${string}`,
-      `0x${string}`,
-      bigint,
-      bigint,
-      bigint,
-      `0x${string}`,
-      number,
-      `0x${string}`,
-      `0x${string}`
-    ] = [
-      from as `0x${string}`,
-      to as `0x${string}`,
-      BigInt(value),
-      BigInt(validAfter),
-      BigInt(validBefore),
-      nonce as `0x${string}`,
-      v,
-      r as `0x${string}`,
-      s as `0x${string}`,
-    ]
-
     console.log('[Settle] Transaction args:', {
-      from: txArgs[0],
-      to: txArgs[1],
-      value: txArgs[2].toString(),
-      validAfter: txArgs[3].toString(),
-      validBefore: txArgs[4].toString(),
-      nonce: txArgs[5].slice(0, 10) + '...',
-      v: txArgs[6],
-      r: txArgs[7].slice(0, 10) + '...',
-      s: txArgs[8].slice(0, 10) + '...',
+      from,
+      to,
+      value,
+      validAfter,
+      validBefore,
+      nonce: nonce.slice(0, 10) + '...',
+      v,
+      r: r.slice(0, 10) + '...',
+      s: s.slice(0, 10) + '...',
     })
 
     const hash = await walletClient.writeContract({
       address: USD1_TOKEN,
       abi: eip3009Abi,
       functionName: 'transferWithAuthorization',
-      args: txArgs,
+      args: [
+        from as `0x${string}`,
+        to as `0x${string}`,
+        BigInt(value),
+        BigInt(validAfter),
+        BigInt(validBefore),
+        nonce as `0x${string}`,
+        v,
+        r as `0x${string}`,
+        s as `0x${string}`,
+      ] as const,
       chain: null,
     })
 
