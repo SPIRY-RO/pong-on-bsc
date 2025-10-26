@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef, useEffect, useCallback } from 'react'
+import { useState, useRef, useEffect } from 'react'
 
 const CHAIN_ID = 56
 const EXPECTED_CHAIN_ID = '0x38' // 56 in hex
@@ -94,33 +94,28 @@ export default function Home() {
     }
   }
 
-  const pay = useCallback(async (tierAmount: number) => {
+  const pay = async (tierAmount: number) => {
     const callId = Math.random().toString(36).substring(7)
     console.log(`[Pay:${callId}] ===== FUNCTION CALLED =====`)
     console.log(`[Pay:${callId}] Tier:`, tierAmount)
-    console.log(`[Pay:${callId}] Account:`, account ? 'set' : 'MISSING')
-    console.log(`[Pay:${callId}] Loading:`, loading)
-    console.log(`[Pay:${callId}] InProgress:`, paymentInProgressRef.current)
+    console.log(`[Pay:${callId}] InProgress ref:`, paymentInProgressRef.current)
+
+    // CRITICAL: Check ref FIRST before any state
+    if (paymentInProgressRef.current) {
+      console.warn(`[Pay:${callId}] ⛔ BLOCKED - Already in progress`)
+      return
+    }
+
+    // Set ref immediately to block any other calls
+    paymentInProgressRef.current = true
+    console.log(`[Pay:${callId}] ✅ Lock acquired, proceeding...`)
 
     if (!account) {
       console.error(`[Pay:${callId}] No account, aborting`)
+      paymentInProgressRef.current = false
       addStatus('❌ Connect wallet first')
       return
     }
-
-    // Prevent double-click spam with ref (bulletproof)
-    if (paymentInProgressRef.current) {
-      console.warn(`[Pay:${callId}] Payment already in progress, IGNORING`)
-      return
-    }
-
-    if (loading) {
-      console.warn(`[Pay:${callId}] Already loading, IGNORING`)
-      return
-    }
-
-    console.log(`[Pay:${callId}] ✅ PROCEEDING with payment`)
-    paymentInProgressRef.current = true
 
     setLoading(true)
     setStatus([])
@@ -130,7 +125,7 @@ export default function Home() {
 
     try {
       // Step 1: Request challenge
-      addStatus('🔄 Requesting EIP-3009 challenge...')
+      addStatus('🔄 Requesting EIP-2612 Permit challenge...')
       console.log(`[Pay:${callId}] Fetching challenge from /api/pong`)
 
       const challengeRes = await fetch('/api/pong', {
@@ -184,17 +179,16 @@ export default function Home() {
 
       addStatus(`📝 Signature v=${v}, r=${r.slice(0, 10)}..., s=${s.slice(0, 10)}...`)
 
-      // Step 3: Settle
+      // Step 3: Settle with EIP-2612 Permit
       setTransactionStage('settling')
       addStatus('⚡ Settling transaction on-chain...')
 
       const settlePayload = {
-        from: challenge.values.from,
-        to: challenge.values.to,
+        owner: challenge.values.owner,
+        spender: challenge.values.spender,
         value: challenge.values.value,
-        validAfter: challenge.values.validAfter,
-        validBefore: challenge.values.validBefore,
         nonce: challenge.values.nonce,
+        deadline: challenge.values.deadline,
         v,
         r,
         s,
@@ -229,9 +223,9 @@ export default function Home() {
     } finally {
       setLoading(false)
       paymentInProgressRef.current = false
-      console.log('[Pay] Payment process ended')
+      console.log(`[Pay:${callId}] Payment process ended, lock released`)
     }
-  }, [account, loading])
+  }
 
   const resetTransaction = () => {
     setTransactionStage('idle')
@@ -267,7 +261,7 @@ export default function Home() {
         </h1>
         <p style={styles.heroSubtitle}>Fair Launch Token Distribution</p>
         <p style={styles.heroDescription}>
-          Gasless payment via EIP-3009 on BNB Chain. No gas fees for you, instant allocation.
+          Gasless payment via EIP-2612 Permit on BNB Chain. No gas fees for you, instant allocation.
         </p>
 
         {/* Trust Badges */}
@@ -349,7 +343,7 @@ export default function Home() {
             </button>
             <div style={styles.techBadges}>
               <span style={styles.techBadge}>BNB Chain</span>
-              <span style={styles.techBadge}>EIP-3009</span>
+              <span style={styles.techBadge}>EIP-2612</span>
               <span style={styles.techBadge}>Gasless</span>
               <span style={styles.techBadge}>x402</span>
             </div>
@@ -386,19 +380,18 @@ export default function Home() {
                   </div>
                   <div style={styles.tierRatio}>4,000 PONG per USD1</div>
                   <button
+                    type="button"
                     style={{
                       ...styles.tierButton,
                       ...(tier.popular ? styles.tierButtonPopular : {}),
                       ...(loading ? { opacity: 0.5, cursor: 'not-allowed' } : {}),
+                      pointerEvents: loading ? 'none' : 'auto',
                     }}
-                    onClick={(e) => {
-                      e.preventDefault()
-                      e.stopPropagation()
-                      if (!loading && !paymentInProgressRef.current) {
-                        pay(tier.usd1)
-                      }
+                    onClick={() => {
+                      console.log('[Button] Clicked tier:', tier.usd1)
+                      pay(tier.usd1)
                     }}
-                    disabled={loading}
+                    disabled={loading || paymentInProgressRef.current}
                   >
                     {loading && selectedTier === tier.usd1 ? 'Processing...' : 'Select'}
                   </button>
@@ -501,7 +494,7 @@ export default function Home() {
         <div style={styles.footerContent}>
           <div style={styles.footerInfo}>
             <span style={styles.footerLabel}>Protocol:</span>
-            <span style={styles.footerValue}>x402 via EIP-3009</span>
+            <span style={styles.footerValue}>x402 via EIP-2612</span>
           </div>
           <div style={styles.footerInfo}>
             <span style={styles.footerLabel}>Network:</span>

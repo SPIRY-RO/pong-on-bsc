@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
-import { publicClient } from '@/lib/viem'
-import { eip3009Abi } from '@/lib/eip3009Abi'
-import { randomBytes } from 'crypto'
+import { publicClient, getWalletClient } from '@/lib/viem'
+import { usd1Abi } from '@/lib/eip3009Abi'
 
 // USD1 Token & Treasury (immutable, official addresses on BSC)
 const USD1_TOKEN = '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' as `0x${string}`
@@ -29,7 +28,7 @@ export async function GET() {
       },
     ],
     product: 'PONG',
-    note: `Pay 10 USD1 (EIP-3009) to receive ${(Number(BigInt(PRICE_MINOR) / BigInt(10 ** 18))) * PONG_PER_USD1} PONG allocation (handled off-chain)`,
+    note: `Pay 10 USD1 (EIP-2612 Permit) to receive ${(Number(BigInt(PRICE_MINOR) / BigInt(10 ** 18))) * PONG_PER_USD1} PONG allocation (handled off-chain)`,
   }
 
   return NextResponse.json(descriptor, { status: 402 })
@@ -37,9 +36,14 @@ export async function GET() {
 
 // POST /api/pong → 402 EIP-3009 challenge
 export async function POST(req: NextRequest) {
+  const requestId = Math.random().toString(36).substring(7)
+  console.log(`\n[Challenge:${requestId}] ===== NEW REQUEST =====`)
+  console.log(`[Challenge:${requestId}] Timestamp:`, new Date().toISOString())
+
   try {
     // Check env vars first
     if (!TREASURY || !USD1_TOKEN) {
+      console.error(`[Challenge:${requestId}] Missing env vars`)
       return NextResponse.json(
         { error: 'Server configuration error: Missing TREASURY or USD1_TOKEN env vars' },
         { status: 500 }
@@ -48,6 +52,9 @@ export async function POST(req: NextRequest) {
 
     const body = await req.json()
     const { owner, amount } = body
+
+    console.log(`[Challenge:${requestId}] Owner:`, owner)
+    console.log(`[Challenge:${requestId}] Amount:`, amount)
 
     if (!owner || !/^0x[a-fA-F0-9]{40}$/.test(owner)) {
       return NextResponse.json(
@@ -70,24 +77,35 @@ export async function POST(req: NextRequest) {
     // Calculate price in minor units (18 decimals for USD1)
     const priceMinor = (BigInt(tierAmount) * BigInt(10 ** 18)).toString()
 
-    console.log('[Challenge] Tier amount:', tierAmount, 'Price minor:', priceMinor)
+    // Get facilitator address (spender in permit)
+    const facilitator = getWalletClient().account.address
 
-    // Try to read token name, fallback to env
+    console.log(`[Challenge:${requestId}] Facilitator address:`, facilitator)
+
+    // Try to read token name
     let tokenName = TOKEN_NAME
     try {
       tokenName = await publicClient.readContract({
         address: USD1_TOKEN,
-        abi: eip3009Abi,
+        abi: usd1Abi,
         functionName: 'name',
       })
     } catch {
       // Fallback to env
     }
 
-    // Generate challenge
-    const validAfter = 0
-    const validBefore = Math.floor(Date.now() / 1000) + CHALLENGE_MINUTES * 60
-    const nonce = `0x${randomBytes(32).toString('hex')}`
+    // Read current nonce for the user from contract
+    const nonce = await publicClient.readContract({
+      address: USD1_TOKEN,
+      abi: usd1Abi,
+      functionName: 'nonces',
+      args: [owner as `0x${string}`],
+    })
+
+    console.log(`[Challenge:${requestId}] User nonce from contract:`, nonce.toString())
+
+    // Generate EIP-2612 Permit challenge
+    const deadline = Math.floor(Date.now() / 1000) + CHALLENGE_MINUTES * 60
 
     const domain = {
       name: tokenName,
@@ -97,40 +115,39 @@ export async function POST(req: NextRequest) {
     }
 
     const types = {
-      TransferWithAuthorization: [
-        { name: 'from', type: 'address' },
-        { name: 'to', type: 'address' },
+      Permit: [
+        { name: 'owner', type: 'address' },
+        { name: 'spender', type: 'address' },
         { name: 'value', type: 'uint256' },
-        { name: 'validAfter', type: 'uint256' },
-        { name: 'validBefore', type: 'uint256' },
-        { name: 'nonce', type: 'bytes32' },
+        { name: 'nonce', type: 'uint256' },
+        { name: 'deadline', type: 'uint256' },
       ],
     }
 
     const values = {
-      from: owner,
-      to: TREASURY,
+      owner,
+      spender: facilitator, // Facilitator will execute transferFrom
       value: priceMinor,
-      validAfter,
-      validBefore,
-      nonce,
+      nonce: nonce.toString(),
+      deadline,
     }
 
-    console.log('[Challenge] Response values:', {
-      from: owner,
-      to: TREASURY,
+    console.log(`[Challenge:${requestId}] Generated EIP-2612 Permit:`, {
+      owner,
+      spender: facilitator,
       value: priceMinor,
-      validAfter,
-      validBefore,
-      nonce: nonce.slice(0, 10) + '...'
+      nonce: nonce.toString(),
+      deadline,
     })
+
+    console.log(`[Challenge:${requestId}] ===== SENDING 402 RESPONSE =====\n`)
 
     return NextResponse.json(
       {
         domain,
         types,
         values,
-        primaryType: 'TransferWithAuthorization',
+        primaryType: 'Permit',
       },
       { status: 402 }
     )

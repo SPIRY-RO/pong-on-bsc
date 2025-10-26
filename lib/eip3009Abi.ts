@@ -1,4 +1,5 @@
-export const eip3009Abi = [
+// EIP-2612 Permit ABI for USD1 token
+export const usd1Abi = [
   {
     inputs: [],
     name: 'name',
@@ -7,20 +8,39 @@ export const eip3009Abi = [
     type: 'function',
   },
   {
+    inputs: [{ internalType: 'address', name: 'owner', type: 'address' }],
+    name: 'nonces',
+    outputs: [{ internalType: 'uint256', name: '', type: 'uint256' }],
+    stateMutability: 'view',
+    type: 'function',
+  },
+  {
     inputs: [
-      { internalType: 'address', name: 'from', type: 'address' },
-      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'address', name: 'owner', type: 'address' },
+      { internalType: 'address', name: 'spender', type: 'address' },
       { internalType: 'uint256', name: 'value', type: 'uint256' },
-      { internalType: 'uint256', name: 'validAfter', type: 'uint256' },
-      { internalType: 'uint256', name: 'validBefore', type: 'uint256' },
-      { internalType: 'bytes32', name: 'nonce', type: 'bytes32' },
+      { internalType: 'uint256', name: 'deadline', type: 'uint256' },
       { internalType: 'uint8', name: 'v', type: 'uint8' },
       { internalType: 'bytes32', name: 'r', type: 'bytes32' },
       { internalType: 'bytes32', name: 's', type: 'bytes32' },
     ],
-    name: 'transferWithAuthorization',
+    name: 'permit',
     outputs: [],
     stateMutability: 'nonpayable',
     type: 'function',
   },
+  {
+    inputs: [
+      { internalType: 'address', name: 'from', type: 'address' },
+      { internalType: 'address', name: 'to', type: 'address' },
+      { internalType: 'uint256', name: 'amount', type: 'uint256' },
+    ],
+    name: 'transferFrom',
+    outputs: [{ internalType: 'bool', name: '', type: 'bool' }],
+    stateMutability: 'nonpayable',
+    type: 'function',
+  },
 ] as const
+
+// Legacy export for compatibility
+export const eip3009Abi = usd1Abi

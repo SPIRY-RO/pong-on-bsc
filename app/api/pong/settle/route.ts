@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { publicClient, getWalletClient } from '@/lib/viem'
-import { eip3009Abi } from '@/lib/eip3009Abi'
+import { usd1Abi } from '@/lib/eip3009Abi'
 
 // USD1 Token & Treasury (immutable, official addresses on BSC)
 const USD1_TOKEN = '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' as `0x${string}`
@@ -12,27 +12,30 @@ const PRICE_MINOR = process.env.PRICE_MINOR || '10000000000000000000' // 10 USD1
 const PONG_PER_USD1 = parseInt(process.env.PONG_PER_USD1 || '4000')
 
 export async function POST(req: NextRequest) {
+  const settlementId = Math.random().toString(36).substring(7)
+  console.log(`\n[Settle:${settlementId}] ===== NEW SETTLEMENT =====`)
+
   try {
     const body = await req.json()
-    const { from, to, value, validAfter, validBefore, nonce, v, r, s } = body
+    const { owner, spender, value, nonce, deadline, v, r, s } = body
 
-    console.log('[Settle] Received request:', { from, to, value, validAfter, validBefore, nonce: nonce?.slice(0, 10), v, r: r?.slice(0, 10), s: s?.slice(0, 10) })
+    console.log(`[Settle:${settlementId}] EIP-2612 Permit received:`, {
+      owner,
+      spender,
+      value,
+      nonce,
+      deadline,
+      v,
+      r: r?.slice(0, 10) + '...',
+      s: s?.slice(0, 10) + '...',
+    })
 
     // Validation
-    if (!from || !to || !value || validAfter === undefined || !validBefore || !nonce || !v || !r || !s) {
-      console.error('[Settle] Missing fields:', { from: !!from, to: !!to, value: !!value, validAfter, validBefore: !!validBefore, nonce: !!nonce, v, r: !!r, s: !!s })
+    if (!owner || !spender || !value || nonce === undefined || !deadline || !v || !r || !s) {
+      console.error(`[Settle:${settlementId}] Missing fields`)
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
-      )
-    }
-
-    // Validate to address
-    if (to.toLowerCase() !== TREASURY.toLowerCase()) {
-      console.error('[Settle] Invalid to address:', { to, expected: TREASURY })
-      return NextResponse.json(
-        { error: `Invalid 'to' address. Expected ${TREASURY}` },
-        { status: 422 }
       )
     }
 
@@ -43,52 +46,53 @@ export async function POST(req: NextRequest) {
       '10000000000000000000', // 10 USD1
     ]
     if (!validValues.includes(value)) {
-      console.error('[Settle] Invalid value:', { value, validValues })
+      console.error(`[Settle:${settlementId}] Invalid value:`, value)
       return NextResponse.json(
         { error: `Invalid value. Expected 1, 5, or 10 USD1 (with 18 decimals)` },
         { status: 422 }
       )
     }
 
-    // Validate validBefore
+    // Validate deadline
     const now = Math.floor(Date.now() / 1000)
-    if (parseInt(validBefore) <= now) {
-      console.error('[Settle] Challenge expired:', { validBefore, now })
+    if (parseInt(deadline) <= now) {
+      console.error(`[Settle:${settlementId}] Permit expired`)
       return NextResponse.json(
-        { error: 'Challenge expired. Please request a new challenge.' },
+        { error: 'Permit expired. Please request a new challenge.' },
         { status: 422 }
       )
     }
 
-    console.log('[Settle] All validations passed, executing transferWithAuthorization...')
-    console.log('[Settle] Token:', USD1_TOKEN, 'Treasury:', TREASURY)
+    console.log(`[Settle:${settlementId}] All validations passed`)
 
-    // Execute transferWithAuthorization
+    // Get wallet client
     const walletClient = getWalletClient()
+    const facilitator = walletClient.account.address
 
-    console.log('[Settle] Transaction args:', {
-      from,
-      to,
-      value,
-      validAfter,
-      validBefore,
-      nonce: nonce.slice(0, 10) + '...',
-      v,
-      r: r.slice(0, 10) + '...',
-      s: s.slice(0, 10) + '...',
-    })
+    console.log(`[Settle:${settlementId}] Facilitator:`, facilitator)
+    console.log(`[Settle:${settlementId}] Treasury:`, TREASURY)
 
-    const hash = await walletClient.writeContract({
+    // Validate spender is facilitator
+    if (spender.toLowerCase() !== facilitator.toLowerCase()) {
+      console.error(`[Settle:${settlementId}] Invalid spender - Expected ${facilitator}, got ${spender}`)
+      return NextResponse.json(
+        { error: 'Invalid spender address' },
+        { status: 422 }
+      )
+    }
+
+    // Step 1: Execute permit() to set allowance
+    console.log(`[Settle:${settlementId}] Step 1: Executing permit()...`)
+
+    const permitHash = await walletClient.writeContract({
       address: USD1_TOKEN,
-      abi: eip3009Abi,
-      functionName: 'transferWithAuthorization',
+      abi: usd1Abi,
+      functionName: 'permit',
       args: [
-        from as `0x${string}`,
-        to as `0x${string}`,
+        owner as `0x${string}`,
+        spender as `0x${string}`,
         BigInt(value),
-        BigInt(validAfter),
-        BigInt(validBefore),
-        nonce as `0x${string}`,
+        BigInt(deadline),
         v,
         r as `0x${string}`,
         s as `0x${string}`,
@@ -96,18 +100,46 @@ export async function POST(req: NextRequest) {
       chain: null,
     })
 
-    console.log('[Settle] Transaction sent:', hash)
+    console.log(`[Settle:${settlementId}] Permit tx sent:`, permitHash)
 
-    // Wait for transaction confirmation
-    await publicClient.waitForTransactionReceipt({ hash })
+    // Wait for permit confirmation
+    await publicClient.waitForTransactionReceipt({ hash: permitHash })
+    console.log(`[Settle:${settlementId}] Permit confirmed!`)
+
+    // Step 2: Execute transferFrom() to move tokens
+    console.log(`[Settle:${settlementId}] Step 2: Executing transferFrom()...`)
+
+    const transferHash = await walletClient.writeContract({
+      address: USD1_TOKEN,
+      abi: usd1Abi,
+      functionName: 'transferFrom',
+      args: [
+        owner as `0x${string}`,
+        TREASURY,
+        BigInt(value),
+      ] as const,
+      chain: null,
+    })
+
+    console.log(`[Settle:${settlementId}] Transfer tx sent:`, transferHash)
+
+    // Wait for transfer confirmation
+    await publicClient.waitForTransactionReceipt({ hash: transferHash })
+    console.log(`[Settle:${settlementId}] Transfer confirmed!`)
 
     // Calculate PONG allocation based on actual value transferred (18 decimals)
     const allocationPONG = (Number(BigInt(value) / BigInt(10 ** 18))) * PONG_PER_USD1
 
+    console.log(`[Settle:${settlementId}] ===== SETTLEMENT COMPLETE =====`)
+    console.log(`[Settle:${settlementId}] Permit tx: ${permitHash}`)
+    console.log(`[Settle:${settlementId}] Transfer tx: ${transferHash}`)
+    console.log(`[Settle:${settlementId}] PONG allocated: ${allocationPONG}`)
+
     return NextResponse.json(
       {
         status: 'ok',
-        txHash: hash,
+        txHash: transferHash,
+        permitHash,
         amountMinor: value,
         allocationPONG,
       },
