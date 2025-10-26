@@ -66,7 +66,17 @@ export async function POST(req: NextRequest) {
     // Execute transferWithAuthorization
     const walletClient = getWalletClient()
 
-    const txArgs = [
+    const txArgs: readonly [
+      `0x${string}`,
+      `0x${string}`,
+      bigint,
+      bigint,
+      bigint,
+      `0x${string}`,
+      number,
+      `0x${string}`,
+      `0x${string}`
+    ] = [
       from as `0x${string}`,
       to as `0x${string}`,
       BigInt(value),
@@ -78,7 +88,17 @@ export async function POST(req: NextRequest) {
       s as `0x${string}`,
     ]
 
-    console.log('[Settle] Transaction args:', txArgs.map((arg, i) => i === 2 || i === 3 || i === 4 ? arg.toString() : arg))
+    console.log('[Settle] Transaction args:', {
+      from: txArgs[0],
+      to: txArgs[1],
+      value: txArgs[2].toString(),
+      validAfter: txArgs[3].toString(),
+      validBefore: txArgs[4].toString(),
+      nonce: txArgs[5].slice(0, 10) + '...',
+      v: txArgs[6],
+      r: txArgs[7].slice(0, 10) + '...',
+      s: txArgs[8].slice(0, 10) + '...',
+    })
 
     const hash = await walletClient.writeContract({
       address: USD1_TOKEN,
