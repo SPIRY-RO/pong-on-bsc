@@ -1,4 +1,4 @@
-import { createPublicClient, createWalletClient, http } from 'viem'
+import { createPublicClient, createWalletClient, http, type WalletClient, type Chain, type Transport, type Account } from 'viem'
 import { bsc } from 'viem/chains'
 import { privateKeyToAccount } from 'viem/accounts'
 
@@ -10,9 +10,10 @@ export const publicClient = createPublicClient({
   transport: http(RPC_URL),
 })
 
-let _walletClient: ReturnType<typeof createWalletClient> | null = null
+type WalletClientType = WalletClient<Transport, Chain, Account>
+let _walletClient: WalletClientType | null = null
 
-export const getWalletClient = () => {
+export const getWalletClient = (): WalletClientType => {
   if (!FACILITATOR_PK) {
     throw new Error('FACILITATOR_PK env not set')
   }
