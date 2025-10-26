@@ -48,7 +48,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json()
-    const { owner } = body
+    const { owner, amount } = body
 
     if (!owner || !/^0x[a-fA-F0-9]{40}$/.test(owner)) {
       return NextResponse.json(
@@ -56,6 +56,20 @@ export async function POST(req: NextRequest) {
         { status: 400 }
       )
     }
+
+    // Validate amount - must be 1, 5, or 10
+    const validAmounts = [1, 5, 10]
+    const tierAmount = amount || 10 // Default to 10 for backwards compatibility
+
+    if (!validAmounts.includes(tierAmount)) {
+      return NextResponse.json(
+        { error: 'Invalid amount. Must be 1, 5, or 10 USD1' },
+        { status: 400 }
+      )
+    }
+
+    // Calculate price in minor units (6 decimals for USD1)
+    const priceMinor = (tierAmount * 1_000_000).toString()
 
     // Try to read token name, fallback to env
     let tokenName = TOKEN_NAME
@@ -95,7 +109,7 @@ export async function POST(req: NextRequest) {
     const values = {
       from: owner,
       to: TREASURY,
-      value: PRICE_MINOR,
+      value: priceMinor,
       validAfter,
       validBefore,
       nonce,

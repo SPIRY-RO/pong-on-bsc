@@ -28,10 +28,11 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Validate value
-    if (value !== PRICE_MINOR) {
+    // Validate value - must be 1, 5, or 10 USD1 (in minor units with 6 decimals)
+    const validValues = ['1000000', '5000000', '10000000']
+    if (!validValues.includes(value)) {
       return NextResponse.json(
-        { error: `Invalid value. Expected ${PRICE_MINOR}` },
+        { error: `Invalid value. Expected 1, 5, or 10 USD1 (1000000, 5000000, or 10000000 in minor units)` },
         { status: 422 }
       )
     }
@@ -67,13 +68,14 @@ export async function POST(req: NextRequest) {
     // Wait for transaction confirmation
     await publicClient.waitForTransactionReceipt({ hash })
 
-    const allocationPONG = (parseInt(PRICE_MINOR) / 1_000_000) * PONG_PER_USD1
+    // Calculate PONG allocation based on actual value transferred
+    const allocationPONG = (parseInt(value) / 1_000_000) * PONG_PER_USD1
 
     return NextResponse.json(
       {
         status: 'ok',
         txHash: hash,
-        amountMinor: PRICE_MINOR,
+        amountMinor: value,
         allocationPONG,
       },
       { status: 201 }
