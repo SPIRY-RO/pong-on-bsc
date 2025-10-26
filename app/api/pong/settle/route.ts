@@ -82,7 +82,16 @@ export async function POST(req: NextRequest) {
     }
 
     // Step 1: Execute permit() to set allowance
-    console.log(`[Settle:${settlementId}] Step 1: Executing permit()...`)
+    console.log(`[Settle:${settlementId}] ===== EXECUTING PERMIT() =====`)
+    console.log(`[Settle:${settlementId}] Permit parameters:`, {
+      owner,
+      spender,
+      value,
+      deadline,
+      v,
+      r: r.slice(0, 10) + '...',
+      s: s.slice(0, 10) + '...',
+    })
 
     const permitHash = await walletClient.writeContract({
       address: USD1_TOKEN,

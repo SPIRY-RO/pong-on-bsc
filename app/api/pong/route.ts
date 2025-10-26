@@ -82,16 +82,42 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Challenge:${requestId}] Facilitator address:`, facilitator)
 
-    // Try to read token name
+    // Read token name and version from contract
     let tokenName = TOKEN_NAME
+    let tokenVersion = TOKEN_VERSION
+
     try {
       tokenName = await publicClient.readContract({
         address: USD1_TOKEN,
         abi: usd1Abi,
         functionName: 'name',
       })
-    } catch {
-      // Fallback to env
+      console.log(`[Challenge:${requestId}] Token name from contract:`, tokenName)
+    } catch (e) {
+      console.warn(`[Challenge:${requestId}] Failed to read name, using fallback:`, TOKEN_NAME)
+    }
+
+    try {
+      tokenVersion = await publicClient.readContract({
+        address: USD1_TOKEN,
+        abi: usd1Abi,
+        functionName: 'version',
+      })
+      console.log(`[Challenge:${requestId}] Token version from contract:`, tokenVersion)
+    } catch (e) {
+      console.warn(`[Challenge:${requestId}] Failed to read version, using fallback:`, TOKEN_VERSION)
+    }
+
+    // Read DOMAIN_SEPARATOR for verification
+    try {
+      const domainSeparator = await publicClient.readContract({
+        address: USD1_TOKEN,
+        abi: usd1Abi,
+        functionName: 'DOMAIN_SEPARATOR',
+      })
+      console.log(`[Challenge:${requestId}] DOMAIN_SEPARATOR from contract:`, domainSeparator)
+    } catch (e) {
+      console.warn(`[Challenge:${requestId}] Failed to read DOMAIN_SEPARATOR`)
     }
 
     // Read current nonce for the user from contract
@@ -109,7 +135,7 @@ export async function POST(req: NextRequest) {
 
     const domain = {
       name: tokenName,
-      version: TOKEN_VERSION,
+      version: tokenVersion,
       chainId: 56,
       verifyingContract: USD1_TOKEN,
     }
@@ -124,20 +150,28 @@ export async function POST(req: NextRequest) {
       ],
     }
 
+    // CRITICAL: Values must match EXACTLY what the contract expects
     const values = {
-      owner,
-      spender: facilitator, // Facilitator will execute transferFrom
-      value: priceMinor,
-      nonce: nonce.toString(),
-      deadline,
+      owner: owner as `0x${string}`,
+      spender: facilitator as `0x${string}`,
+      value: priceMinor, // String representation of uint256
+      nonce: nonce.toString(), // String representation of uint256
+      deadline: deadline.toString(), // String representation of uint256
     }
 
-    console.log(`[Challenge:${requestId}] Generated EIP-2612 Permit:`, {
+    console.log(`[Challenge:${requestId}] ===== EIP-2612 PERMIT DETAILS =====`)
+    console.log(`[Challenge:${requestId}] Domain:`, {
+      name: tokenName,
+      version: tokenVersion,
+      chainId: 56,
+      verifyingContract: USD1_TOKEN,
+    })
+    console.log(`[Challenge:${requestId}] Values:`, {
       owner,
       spender: facilitator,
       value: priceMinor,
       nonce: nonce.toString(),
-      deadline,
+      deadline: deadline.toString(),
     })
 
     console.log(`[Challenge:${requestId}] ===== SENDING 402 RESPONSE =====\n`)
