@@ -6,8 +6,9 @@ import { usd1Abi } from '@/lib/eip3009Abi'
 const USD1_TOKEN = '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' as `0x${string}`
 const TREASURY = '0xC0c241ba9A61303aa9A038788C68574172D3934e' as `0x${string}`
 const USD1_DECIMALS = 18
-const TOKEN_NAME = 'USD1'
-const TOKEN_VERSION = '1'
+// Will be read from contract dynamically
+const TOKEN_NAME_FALLBACK = 'USD1'
+const TOKEN_VERSION_FALLBACK = '1'
 
 // Configurable via env
 const PRICE_MINOR = process.env.PRICE_MINOR || '10000000000000000000' // 10 USD1 with 18 decimals
@@ -82,30 +83,54 @@ export async function POST(req: NextRequest) {
 
     console.log(`[Challenge:${requestId}] Facilitator address:`, facilitator)
 
-    // Read token name and version from contract
-    let tokenName = TOKEN_NAME
-    let tokenVersion = TOKEN_VERSION
+    // Try to read EIP-5267 eip712Domain() first - this is the MOST RELIABLE way!
+    let tokenName = TOKEN_NAME_FALLBACK
+    let tokenVersion = TOKEN_VERSION_FALLBACK
+    let domainChainId = 56
 
     try {
-      tokenName = await publicClient.readContract({
+      const domain = await publicClient.readContract({
         address: USD1_TOKEN,
         abi: usd1Abi,
-        functionName: 'name',
+        functionName: 'eip712Domain',
       })
-      console.log(`[Challenge:${requestId}] Token name from contract:`, tokenName)
-    } catch (e) {
-      console.warn(`[Challenge:${requestId}] Failed to read name, using fallback:`, TOKEN_NAME)
-    }
 
-    try {
-      tokenVersion = await publicClient.readContract({
-        address: USD1_TOKEN,
-        abi: usd1Abi,
-        functionName: 'version',
-      })
-      console.log(`[Challenge:${requestId}] Token version from contract:`, tokenVersion)
-    } catch (e) {
-      console.warn(`[Challenge:${requestId}] Failed to read version, using fallback:`, TOKEN_VERSION)
+      // EIP-5267 returns: [fields, name, version, chainId, verifyingContract, salt, extensions]
+      tokenName = domain[1] // name
+      tokenVersion = domain[2] // version
+      domainChainId = Number(domain[3]) // chainId
+
+      console.log(`[Challenge:${requestId}] ✅✅✅ EIP-5267 eip712Domain() SUCCESS:`)
+      console.log(`[Challenge:${requestId}]   Name: "${tokenName}"`)
+      console.log(`[Challenge:${requestId}]   Version: "${tokenVersion}"`)
+      console.log(`[Challenge:${requestId}]   ChainId: ${domainChainId}`)
+      console.log(`[Challenge:${requestId}]   VerifyingContract: ${domain[4]}`)
+    } catch (e: any) {
+      console.error(`[Challenge:${requestId}] ❌ eip712Domain() failed:`, e.message)
+      console.log(`[Challenge:${requestId}] Falling back to individual reads...`)
+
+      // Fallback to individual reads
+      try {
+        tokenName = await publicClient.readContract({
+          address: USD1_TOKEN,
+          abi: usd1Abi,
+          functionName: 'name',
+        })
+        console.log(`[Challenge:${requestId}] ✅ name():`, tokenName)
+      } catch {
+        console.log(`[Challenge:${requestId}] ⚠️  Using fallback name:`, TOKEN_NAME_FALLBACK)
+      }
+
+      try {
+        tokenVersion = await publicClient.readContract({
+          address: USD1_TOKEN,
+          abi: usd1Abi,
+          functionName: 'version',
+        })
+        console.log(`[Challenge:${requestId}] ✅ version():`, tokenVersion)
+      } catch {
+        console.log(`[Challenge:${requestId}] ⚠️  Using fallback version:`, TOKEN_VERSION_FALLBACK)
+      }
     }
 
     // Read DOMAIN_SEPARATOR for verification
@@ -116,8 +141,8 @@ export async function POST(req: NextRequest) {
         functionName: 'DOMAIN_SEPARATOR',
       })
       console.log(`[Challenge:${requestId}] DOMAIN_SEPARATOR from contract:`, domainSeparator)
-    } catch (e) {
-      console.warn(`[Challenge:${requestId}] Failed to read DOMAIN_SEPARATOR`)
+    } catch (e: any) {
+      console.log(`[Challenge:${requestId}] DOMAIN_SEPARATOR not available`)
     }
 
     // Read current nonce for the user from contract
@@ -136,7 +161,7 @@ export async function POST(req: NextRequest) {
     const domain = {
       name: tokenName,
       version: tokenVersion,
-      chainId: 56,
+      chainId: domainChainId,
       verifyingContract: USD1_TOKEN,
     }
 
