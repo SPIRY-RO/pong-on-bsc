@@ -111,34 +111,42 @@ export default function Home() {
 
       addStatus('✅ Signature obtained')
 
-      // Extract v, r, s
+      // Extract v, r, s from signature
       const sig = signature.slice(2)
       const r = '0x' + sig.slice(0, 64)
       const s = '0x' + sig.slice(64, 128)
       const v = parseInt(sig.slice(128, 130), 16)
 
+      addStatus(`📝 Signature v=${v}, r=${r.slice(0, 10)}..., s=${s.slice(0, 10)}...`)
+
       // Step 3: Settle
       setTransactionStage('settling')
       addStatus('⚡ Settling transaction on-chain...')
+
+      const settlePayload = {
+        from: challenge.values.from,
+        to: challenge.values.to,
+        value: challenge.values.value,
+        validAfter: challenge.values.validAfter,
+        validBefore: challenge.values.validBefore,
+        nonce: challenge.values.nonce,
+        v,
+        r,
+        s,
+      }
+
+      console.log('Settle payload:', settlePayload)
+
       const settleRes = await fetch('/api/pong/settle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          from: challenge.values.from,
-          to: challenge.values.to,
-          value: challenge.values.value,
-          validAfter: challenge.values.validAfter,
-          validBefore: challenge.values.validBefore,
-          nonce: challenge.values.nonce,
-          v,
-          r,
-          s,
-        }),
+        body: JSON.stringify(settlePayload),
       })
 
       if (settleRes.status !== 201) {
         const err = await settleRes.json()
-        throw new Error(err.error || 'Settlement failed')
+        console.error('Settlement error:', err)
+        throw new Error(err.error + (err.details ? `: ${err.details}` : '') || 'Settlement failed')
       }
 
       const result = await settleRes.json()
@@ -407,14 +415,6 @@ export default function Home() {
             <span style={styles.footerValue}>4,000 PONG per USD1</span>
           </div>
         </div>
-        <a
-          href="https://github.com/anthropics/claude-code"
-          target="_blank"
-          rel="noopener noreferrer"
-          style={styles.footerLink}
-        >
-          Built with Claude Code
-        </a>
       </footer>
     </div>
   )

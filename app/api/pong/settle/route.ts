@@ -63,6 +63,7 @@ export async function POST(req: NextRequest) {
         r as `0x${string}`,
         s as `0x${string}`,
       ],
+      chain: null,
     })
 
     // Wait for transaction confirmation
