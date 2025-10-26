@@ -14,7 +14,12 @@ const PAYMENT_TIERS = [
 
 type TransactionStage = 'idle' | 'requesting' | 'signing' | 'settling' | 'success' | 'error'
 
+let renderCount = 0
+
 export default function Home() {
+  renderCount++
+  console.log(`[Component] ===== RENDER #${renderCount} =====`)
+
   const [account, setAccount] = useState<string>('')
   const [status, setStatus] = useState<string[]>([])
   const [txHash, setTxHash] = useState<string>('')
@@ -126,24 +131,34 @@ export default function Home() {
     try {
       // Step 1: Request challenge
       addStatus('🔄 Requesting EIP-3009 challenge...')
+      console.log(`[Pay:${callId}] Fetching challenge from /api/pong`)
+
       const challengeRes = await fetch('/api/pong', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ owner: account, amount: tierAmount }),
       })
 
+      console.log(`[Pay:${callId}] Challenge response status:`, challengeRes.status)
+
       // x402 protocol: 402 status is expected for payment challenges
       if (challengeRes.status !== 402) {
         const err = await challengeRes.json()
+        console.error(`[Pay:${callId}] Challenge failed:`, err)
         throw new Error(err.error || 'Challenge request failed')
       }
 
       const challenge = await challengeRes.json()
+      console.log(`[Pay:${callId}] Challenge received:`, challenge)
       addStatus('✅ Challenge received')
 
       // Step 2: Sign with eth_signTypedData_v4
       setTransactionStage('signing')
       addStatus('🔏 Requesting signature...')
+
+      console.log(`[Pay:${callId}] ===== REQUESTING SIGNATURE FROM METAMASK =====`)
+      console.log(`[Pay:${callId}] This should appear ONLY ONCE!`)
+
       const signature = await window.ethereum.request({
         method: 'eth_signTypedData_v4',
         params: [
@@ -156,6 +171,8 @@ export default function Home() {
           }),
         ],
       })
+
+      console.log(`[Pay:${callId}] Signature received from MetaMask`)
 
       addStatus('✅ Signature obtained')
 
