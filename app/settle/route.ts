@@ -127,6 +127,16 @@ export async function POST(req: NextRequest) {
     console.log(`[Settle:${settlementId}] ===== EXECUTING PERMIT() + TRANSFERFROM() IN PARALLEL =====`)
     console.log(`[Settle:${settlementId}] Facilitator nonce: ${facilitatorNonce}`)
 
+    // Log EXACT values being sent to permit()
+    console.log(`[Settle:${settlementId}] permit() args:`)
+    console.log(`[Settle:${settlementId}]   owner: ${owner}`)
+    console.log(`[Settle:${settlementId}]   spender: ${spender}`)
+    console.log(`[Settle:${settlementId}]   value: ${value} => BigInt: ${BigInt(value).toString()}`)
+    console.log(`[Settle:${settlementId}]   deadline: ${deadline} => BigInt: ${BigInt(deadline).toString()}`)
+    console.log(`[Settle:${settlementId}]   v: ${v}`)
+    console.log(`[Settle:${settlementId}]   r: ${r}`)
+    console.log(`[Settle:${settlementId}]   s: ${s}`)
+
     // Send both transactions in parallel (x402-permit pattern)
     const [permitHash, transferHash] = await Promise.all([
       // Transaction 1: permit()

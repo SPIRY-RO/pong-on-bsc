@@ -256,55 +256,27 @@ export async function POST(req: NextRequest) {
     const facilitator = getWalletClient().account.address
     console.log(`[/pong:${requestId}] Facilitator address:`, facilitator)
 
-    // Try to read EIP-5267 eip712Domain() first - this is the MOST RELIABLE way!
-    let tokenName = TOKEN_NAME_FALLBACK
-    let tokenVersion = TOKEN_VERSION_FALLBACK
+    // Read name from contract - CRITICAL for EIP-712 domain
+    let tokenName: string
+    let tokenVersion = '1' // USD1 doesn't have version(), use default
     let domainChainId = 56
 
     try {
-      const domain = await publicClient.readContract({
+      // Read name() from contract - this is what contract uses for domain separator
+      tokenName = await publicClient.readContract({
         address: USD1_TOKEN,
         abi: usd1Abi,
-        functionName: 'eip712Domain',
+        functionName: 'name',
       })
-
-      // EIP-5267 returns: [fields, name, version, chainId, verifyingContract, salt, extensions]
-      tokenName = domain[1] // name
-      tokenVersion = domain[2] // version
-      domainChainId = Number(domain[3]) // chainId
-
-      console.log(`[/pong:${requestId}] ✅✅✅ EIP-5267 eip712Domain() SUCCESS:`)
-      console.log(`[/pong:${requestId}]   Name: "${tokenName}"`)
-      console.log(`[/pong:${requestId}]   Version: "${tokenVersion}"`)
-      console.log(`[/pong:${requestId}]   ChainId: ${domainChainId}`)
-      console.log(`[/pong:${requestId}]   VerifyingContract: ${domain[4]}`)
+      console.log(`[/pong:${requestId}] ✅ name() from contract:`, tokenName)
     } catch (e: any) {
-      console.error(`[/pong:${requestId}] ❌ eip712Domain() failed:`, e.message)
-      console.log(`[/pong:${requestId}] Falling back to individual reads...`)
-
-      // Fallback to individual reads
-      try {
-        tokenName = await publicClient.readContract({
-          address: USD1_TOKEN,
-          abi: usd1Abi,
-          functionName: 'name',
-        })
-        console.log(`[/pong:${requestId}] ✅ name():`, tokenName)
-      } catch {
-        console.log(`[/pong:${requestId}] ⚠️  Using fallback name:`, TOKEN_NAME_FALLBACK)
-      }
-
-      try {
-        tokenVersion = await publicClient.readContract({
-          address: USD1_TOKEN,
-          abi: usd1Abi,
-          functionName: 'version',
-        })
-        console.log(`[/pong:${requestId}] ✅ version():`, tokenVersion)
-      } catch {
-        console.log(`[/pong:${requestId}] ⚠️  Using fallback version:`, TOKEN_VERSION_FALLBACK)
-      }
+      console.error(`[/pong:${requestId}] ❌ name() failed:`, e.message)
+      tokenName = TOKEN_NAME_FALLBACK
+      console.log(`[/pong:${requestId}] Using fallback name:`, tokenName)
     }
+
+    // USD1 doesn't implement version(), but permit() uses "1" by default
+    console.log(`[/pong:${requestId}] Using version: "${tokenVersion}"`)
 
     // Read DOMAIN_SEPARATOR for verification
     try {
@@ -349,12 +321,13 @@ export async function POST(req: NextRequest) {
     }
 
     // CRITICAL: Values must match EXACTLY what the contract expects
+    // Use BigInt for uint256 values so MetaMask encodes them correctly
     const values = {
       owner: owner as `0x${string}`,
       spender: facilitator as `0x${string}`,
-      value: PRICE_MINOR, // String representation of uint256
-      nonce: nonce.toString(), // String representation of uint256
-      deadline: deadline.toString(), // String representation of uint256
+      value: BigInt(PRICE_MINOR), // uint256 as BigInt
+      nonce: nonce, // uint256 as BigInt (already bigint from contract read)
+      deadline: BigInt(deadline), // uint256 as BigInt
     }
 
     console.log(`[/pong:${requestId}] ===== EIP-2612 PERMIT DETAILS =====`)
@@ -374,11 +347,22 @@ export async function POST(req: NextRequest) {
 
     console.log(`[/pong:${requestId}] ===== SENDING 402 RESPONSE =====\\n`)
 
+    // Convert BigInt to string for JSON serialization
+    // Frontend will receive strings and pass to MetaMask as-is
+    // MetaMask will encode based on types (uint256)
+    const valuesForJSON = {
+      owner: values.owner,
+      spender: values.spender,
+      value: values.value.toString(),
+      nonce: values.nonce.toString(),
+      deadline: values.deadline.toString(),
+    }
+
     return NextResponse.json(
       {
         domain,
         types,
-        values,
+        values: valuesForJSON,
         primaryType: 'Permit',
       },
       { status: 402 }

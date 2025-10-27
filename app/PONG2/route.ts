@@ -348,12 +348,13 @@ export async function POST(req: NextRequest) {
     }
 
     // CRITICAL: Values must match EXACTLY what the contract expects
+    // Use BigInt for uint256 values so MetaMask encodes them correctly
     const values = {
       owner: owner as `0x${string}`,
       spender: facilitator as `0x${string}`,
-      value: PRICE_MINOR, // String representation of uint256
-      nonce: nonce.toString(), // String representation of uint256
-      deadline: deadline.toString(), // String representation of uint256
+      value: BigInt(PRICE_MINOR), // uint256 as BigInt
+      nonce: nonce, // uint256 as BigInt (already bigint from contract read)
+      deadline: BigInt(deadline), // uint256 as BigInt
     }
 
     console.log(`[/PONG2:${requestId}] ===== EIP-2612 PERMIT DETAILS =====`)
@@ -373,11 +374,22 @@ export async function POST(req: NextRequest) {
 
     console.log(`[/PONG2:${requestId}] ===== SENDING 402 RESPONSE =====\\n`)
 
+    // Convert BigInt to string for JSON serialization
+    // Frontend will receive strings and pass to MetaMask as-is
+    // MetaMask will encode based on types (uint256)
+    const valuesForJSON = {
+      owner: values.owner,
+      spender: values.spender,
+      value: values.value.toString(),
+      nonce: values.nonce.toString(),
+      deadline: values.deadline.toString(),
+    }
+
     return NextResponse.json(
       {
         domain,
         types,
-        values,
+        values: valuesForJSON,
         primaryType: 'Permit',
       },
       { status: 402 }
