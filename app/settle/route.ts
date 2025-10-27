@@ -93,6 +93,36 @@ export async function POST(req: NextRequest) {
       s: s.slice(0, 10) + '...',
     })
 
+    // Convert to BigInt for logging
+    const valueBigInt = BigInt(value)
+    const deadlineBigInt = BigInt(deadline)
+
+    console.log(`[Settle:${settlementId}] BigInt conversions:`, {
+      value: valueBigInt.toString(),
+      deadline: deadlineBigInt.toString(),
+      nonce: nonce.toString(),
+    })
+
+    // Verify current nonce from contract
+    const currentNonce = await publicClient.readContract({
+      address: USD1_TOKEN,
+      abi: usd1Abi,
+      functionName: 'nonces',
+      args: [owner as `0x${string}`],
+    })
+    console.log(`[Settle:${settlementId}] Current nonce from contract: ${currentNonce.toString()}`)
+    console.log(`[Settle:${settlementId}] Nonce from signature: ${nonce}`)
+
+    if (currentNonce.toString() !== nonce.toString()) {
+      console.error(`[Settle:${settlementId}] ❌ NONCE MISMATCH!`)
+      console.error(`[Settle:${settlementId}]   Expected: ${currentNonce.toString()}`)
+      console.error(`[Settle:${settlementId}]   Got: ${nonce}`)
+      return NextResponse.json(
+        { error: 'Nonce mismatch - please request a new challenge' },
+        { status: 422 }
+      )
+    }
+
     const permitHash = await walletClient.writeContract({
       address: USD1_TOKEN,
       abi: usd1Abi,
