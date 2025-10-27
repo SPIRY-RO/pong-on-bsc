@@ -395,6 +395,11 @@ export async function POST(req: NextRequest) {
       { status: 402 }
     )
   } catch (error) {
+    console.error('[/PONG2] Challenge generation error:', error)
+    console.error('[/PONG2] Error details:', {
+      message: (error as Error).message,
+      stack: (error as Error).stack,
+    })
     return NextResponse.json(
       { error: 'Invalid request', details: (error as Error).message },
       { status: 400 }

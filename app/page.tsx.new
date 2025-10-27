@@ -1,0 +1,274 @@
+'use client'
+
+import { useState, useRef, useEffect } from 'react'
+
+const CHAIN_ID = 56
+const EXPECTED_CHAIN_ID = '0x38' // 56 in hex
+
+// Payment tier configuration
+const PAYMENT_TIERS = [
+  { amount: 1, usd1: 1, pong: 4000, popular: false },
+  { amount: 5, usd1: 5, pong: 20000, popular: true },
+  { amount: 10, usd1: 10, pong: 40000, popular: false },
+]
+
+type TransactionStage = 'idle' | 'requesting' | 'signing' | 'settling' | 'success' | 'error'
+
+let renderCount = 0
+
+export default function Home() {
+  renderCount++
+  console.log(`[Component] ===== RENDER #${renderCount} =====`)
+
+  const [account, setAccount] = useState<string>('')
+  const [status, setStatus] = useState<string[]>([])
+  const [txHash, setTxHash] = useState<string>('')
+  const [loading, setLoading] = useState(false)
+  const [selectedTier, setSelectedTier] = useState<number | null>(null)
+  const [transactionStage, setTransactionStage] = useState<TransactionStage>('idle')
+  const [allocatedPong, setAllocatedPong] = useState<number>(0)
+  const paymentInProgressRef = useRef(false)
+
+  const addStatus = (msg: string) => {
+    setStatus((prev) => [...prev, `${new Date().toLocaleTimeString()} → ${msg}`])
+  }
+
+  useEffect(() => {
+    console.log('[Effect] Account changed to:', account || 'empty')
+    if (account) {
+      console.log('[Effect] Account is set! UI should show pricing tiers now.')
+    } else {
+      console.log('[Effect] No account, UI should show connect button.')
+    }
+  }, [account])
+
+  const connectWallet = async () => {
+    try {
+      console.log('[Wallet] Starting connection...')
+
+      if (!window.ethereum) {
+        console.error('[Wallet] MetaMask not found')
+        addStatus('❌ MetaMask not found')
+        alert('MetaMask not found! Please install MetaMask extension.')
+        return
+      }
+
+      console.log('[Wallet] Requesting accounts...')
+      const accounts = await window.ethereum.request({
+        method: 'eth_requestAccounts',
+      })
+      console.log('[Wallet] Accounts:', accounts)
+
+      const chainId = await window.ethereum.request({ method: 'eth_chainId' })
+      console.log('[Wallet] Current chainId:', chainId, 'Expected:', EXPECTED_CHAIN_ID)
+
+      if (chainId !== EXPECTED_CHAIN_ID) {
+        console.log('[Wallet] Wrong network, switching...')
+        addStatus('⚠️  Wrong network. Switching to BNB Chain...')
+        try {
+          await window.ethereum.request({
+            method: 'wallet_switchEthereumChain',
+            params: [{ chainId: EXPECTED_CHAIN_ID }],
+          })
+          console.log('[Wallet] Switched to BNB Chain')
+          addStatus('✅ Switched to BNB Chain')
+        } catch (switchError: any) {
+          console.error('[Wallet] Switch error:', switchError)
+          if (switchError.code === 4902) {
+            addStatus('❌ BNB Chain not found in wallet. Please add it manually.')
+          }
+          return
+        }
+      }
+
+      const selectedAccount = accounts[0].toLowerCase()
+      console.log('[Wallet] Setting account:', selectedAccount)
+      setAccount(selectedAccount)
+      addStatus(`✅ Connected: ${selectedAccount.slice(0, 6)}...${selectedAccount.slice(-4)}`)
+      console.log('[Wallet] Connection successful!')
+      console.log('[Wallet] Account state should now be:', selectedAccount)
+    } catch (error) {
+      console.error('[Wallet] Connection error:', error)
+      addStatus(`❌ Connection failed: ${(error as Error).message}`)
+    }
+  }
+
+  const pay = async (tierAmount: number) => {
+    const callId = Math.random().toString(36).substring(7)
+    console.log(`[Pay:${callId}] ===== FUNCTION CALLED =====`)
+    console.log(`[Pay:${callId}] Tier:`, tierAmount)
+    console.log(`[Pay:${callId}] InProgress ref:`, paymentInProgressRef.current)
+
+    if (paymentInProgressRef.current) {
+      console.warn(`[Pay:${callId}] ⛔ BLOCKED - Already in progress`)
+      return
+    }
+
+    paymentInProgressRef.current = true
+    console.log(`[Pay:${callId}] ✅ Lock acquired, proceeding...`)
+
+    if (!account) {
+      console.error(`[Pay:${callId}] No account, aborting`)
+      paymentInProgressRef.current = false
+      addStatus('❌ Connect wallet first')
+      return
+    }
+
+    setLoading(true)
+    setStatus([])
+    setTxHash('')
+    setSelectedTier(tierAmount)
+    setTransactionStage('requesting')
+
+    try {
+      addStatus('🔄 Requesting EIP-3009 challenge...')
+      console.log(`[Pay:${callId}] Fetching challenge from /api/pong`)
+
+      const challengeRes = await fetch('/api/pong', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ owner: account, amount: tierAmount }),
+      })
+
+      console.log(`[Pay:${callId}] Challenge response status:`, challengeRes.status)
+
+      if (challengeRes.status !== 402) {
+        const err = await challengeRes.json()
+        console.error(`[Pay:${callId}] Challenge failed:`, err)
+        throw new Error(err.error || 'Challenge request failed')
+      }
+
+      const challenge = await challengeRes.json()
+      console.log(`[Pay:${callId}] Challenge received:`, challenge)
+      addStatus('✅ Challenge received')
+
+      setTransactionStage('signing')
+      addStatus('🔏 Requesting signature...')
+
+      console.log(`[Pay:${callId}] ===== REQUESTING SIGNATURE FROM METAMASK =====`)
+
+      const signature = await window.ethereum.request({
+        method: 'eth_signTypedData_v4',
+        params: [
+          account,
+          JSON.stringify({
+            domain: challenge.domain,
+            types: challenge.types,
+            primaryType: challenge.primaryType,
+            message: challenge.values,
+          }),
+        ],
+      })
+
+      console.log(`[Pay:${callId}] Signature received from MetaMask`)
+      addStatus('✅ Signature obtained')
+
+      const sig = signature.slice(2)
+      const r = '0x' + sig.slice(0, 64)
+      const s = '0x' + sig.slice(64, 128)
+      const v = parseInt(sig.slice(128, 130), 16)
+
+      addStatus(`📝 Signature v=${v}, r=${r.slice(0, 10)}..., s=${s.slice(0, 10)}...`)
+
+      setTransactionStage('settling')
+      addStatus('⚡ Settling transaction on-chain...')
+
+      const settlePayload = {
+        from: challenge.values.from,
+        to: challenge.values.to,
+        value: challenge.values.value,
+        validAfter: challenge.values.validAfter,
+        validBefore: challenge.values.validBefore,
+        nonce: challenge.values.nonce,
+        v,
+        r,
+        s,
+      }
+
+      const settleRes = await fetch('/api/pong/settle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(settlePayload),
+      })
+
+      if (settleRes.status !== 201) {
+        const err = await settleRes.json()
+        console.error('Settlement error:', err)
+        throw new Error(err.error + (err.details ? `: ${err.details}` : '') || 'Settlement failed')
+      }
+
+      const result = await settleRes.json()
+      setTxHash(result.txHash)
+      setAllocatedPong(result.allocationPONG)
+      setTransactionStage('success')
+      addStatus(`✅ Success! Tx: ${result.txHash}`)
+      addStatus(`🎉 Allocated ${result.allocationPONG.toLocaleString()} PONG`)
+    } catch (error: any) {
+      setTransactionStage('error')
+      addStatus(`❌ Error: ${error.message}`)
+      if (error.message.includes('expired')) {
+        addStatus('💡 Hint: Request a new challenge and try again')
+      }
+    } finally {
+      setLoading(false)
+      paymentInProgressRef.current = false
+      console.log(`[Pay:${callId}] Payment process ended, lock released`)
+    }
+  }
+
+  const resetTransaction = () => {
+    setTransactionStage('idle')
+    setTxHash('')
+    setStatus([])
+    setSelectedTier(null)
+    setAllocatedPong(0)
+    paymentInProgressRef.current = false
+    console.log('[Reset] Transaction reset')
+  }
+
+  console.log('[Render] State:', {
+    account: account ? account.slice(0, 10) + '...' : 'none',
+    transactionStage,
+    loading
+  })
+
+  return (
+    <div style={styles.container}>
+      <div style={styles.bgGradient1} />
+      <div style={styles.bgGradient2} />
+      <div style={styles.bgGrid} />
+
+      <nav style={styles.navbar}>
+        <div style={styles.navContent}>
+          <div style={styles.navLeft}>
+            <img src="/pong-mascot.png" alt="PONG" style={styles.navLogo} />
+            <span style={styles.navBrand}>PONG</span>
+            <span style={styles.navBadge}>FAIR LAUNCH</span>
+          </div>
+          <div style={styles.navRight}>
+            {account ? (
+              <div style={styles.navWallet}>
+                <div style={styles.navWalletDot} />
+                <span style={styles.navWalletAddress}>
+                  {account.slice(0, 6)}...{account.slice(-4)}
+                </span>
+              </div>
+            ) : (
+              <button style={styles.navConnectBtn} onClick={connectWallet}>
+                Connect Wallet
+              </button>
+            )}
+          </div>
+        </div>
+      </nav>
+
+      {/* Rest of the file continues... */}
+    </div>
+  )
+}
+
+declare global {
+  interface Window {
+    ethereum?: any
+  }
+}

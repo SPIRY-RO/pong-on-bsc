@@ -126,7 +126,7 @@ export default function Home() {
     // Map tier amount to endpoint
     const tierEndpoints: Record<number, string> = {
       1: '/pong',      // Tier 1: 1 USD1 → 4,000 PONG
-      5: '/pong5',     // Tier 2: 5 USD1 → 20,000 PONG (MOST POPULAR)
+      5: '/PONG',      // Tier 2: 5 USD1 → 20,000 PONG (MOST POPULAR)
       10: '/PONG2',    // Tier 3: 10 USD1 → 40,000 PONG
     }
     const endpoint = tierEndpoints[tierAmount]
