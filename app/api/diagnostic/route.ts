@@ -4,7 +4,7 @@ import { usd1Abi } from '@/lib/usd1Abi'
 
 // USD1 Token & Treasury (immutable, official addresses on BSC)
 const USD1_TOKEN = '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' as `0x${string}`
-const TREASURY = '0xC0c241ba9A61303aa9A038788C68574172D3934e' as `0x${string}`
+const TREASURY = '0x8676532800bEF0c69F8Af0A989dBf3943B1b408A' as `0x${string}`
 
 export async function GET() {
   const diagnostics: any = {
