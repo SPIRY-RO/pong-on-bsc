@@ -9,6 +9,8 @@
     "lint": "next lint"
   },
   "dependencies": {
+    "@babylonjs/core": "^8.33.2",
+    "@babylonjs/loaders": "^8.33.2",
     "ethers": "^6.15.0",
     "framer-motion": "^12.23.24",
     "next": "^15.0.0",
