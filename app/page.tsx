@@ -225,7 +225,7 @@ export default function Home() {
       setAllocatedPong(result.allocationPONG)
       setTransactionStage('success')
       addStatus(`✅ Success! Tx: ${result.txHash}`)
-      addStatus(`🎉 Allocated ${result.allocationPONG.toLocaleString()} PONG`)
+      addStatus(`🎉 Allocated ${result.allocationPONG.toLocaleString()} PONG?`)
     } catch (error: any) {
       setTransactionStage('error')
       addStatus(`❌ Error: ${error.message}`)
@@ -302,7 +302,7 @@ export default function Home() {
           <div style={styles.mascotGlow} />
           <motion.img
             src="/pong_logo.png"
-            alt="PONG Logo"
+            alt="PONG? Logo"
             style={styles.heroMascot}
             animate={{ y: [0, -10, 0] }}
             transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
@@ -316,7 +316,7 @@ export default function Home() {
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.3, duration: 0.5 }}
         >
-          <span className="gradient-text-gold" style={styles.pongText}>PONG</span>
+          <span className="gradient-text-gold" style={styles.pongText}>PONG?</span>
         </motion.h1>
 
         <motion.p
@@ -325,7 +325,7 @@ export default function Home() {
           animate={{ opacity: 1 }}
           transition={{ delay: 0.4, duration: 0.5 }}
         >
-          USD1 Facilitator on BSC · PONG Meme Coin
+          USD1 Facilitator on BSC · PONG? Meme Coin
         </motion.p>
 
         <motion.p
@@ -386,7 +386,7 @@ export default function Home() {
               <div style={styles.successMascotContainer}>
                 <motion.img
                   src="/pong_logo.png"
-                  alt="PONG Logo"
+                  alt="PONG? Logo"
                   style={styles.successMascot}
                   animate={{ y: [0, -8, 0] }}
                   transition={{ duration: 0.6, repeat: Infinity }}
@@ -404,7 +404,7 @@ export default function Home() {
               <p style={styles.successMessage}>
                 You've been allocated{' '}
                 <span className="gradient-text-gold" style={styles.successPongAmount}>
-                  {allocatedPong.toLocaleString()} PONG
+                  {allocatedPong.toLocaleString()} PONG?
                 </span>
               </p>
               <div style={styles.successDetails}>
@@ -430,7 +430,7 @@ export default function Home() {
                 whileHover={{ scale: 1.02 }}
                 whileTap={{ scale: 0.98 }}
               >
-                Buy More PONG
+                Buy More PONG?
               </motion.button>
             </motion.div>
           </motion.div>
@@ -524,7 +524,7 @@ export default function Home() {
                   <div style={styles.tierDivider} />
                   <div style={styles.tierReward}>
                     <div style={styles.tierPongAmount}>{tier.pong.toLocaleString()}</div>
-                    <div style={styles.tierPongLabel}>PONG</div>
+                    <div style={styles.tierPongLabel}>PONG?</div>
                   </div>
                   <div style={styles.tierRatio}>4,000 per USD1</div>
                   <motion.button
@@ -593,7 +593,7 @@ export default function Home() {
           >
             <h2 style={styles.progressTitle}>Processing</h2>
             <p style={styles.progressSubtitle}>
-              {selectedTier} USD1 → {PAYMENT_TIERS.find((t) => t.usd1 === selectedTier)?.pong.toLocaleString()} PONG
+              {selectedTier} USD1 → {PAYMENT_TIERS.find((t) => t.usd1 === selectedTier)?.pong.toLocaleString()} PONG?
             </p>
 
             <div style={styles.progressSteps}>
@@ -671,7 +671,7 @@ export default function Home() {
             <span style={styles.footerLabel}>BNB Chain</span>
           </div>
           <div style={styles.footerInfo}>
-            <span style={styles.footerLabel}>4,000 PONG/USD1</span>
+            <span style={styles.footerLabel}>4,000 PONG?/USD1</span>
           </div>
         </div>
 
@@ -695,9 +695,9 @@ export default function Home() {
           </div>
           <div style={styles.apiEndpoints}>
             {[
-              { endpoint: '/pong1', description: '1 USD1 → 4,000 PONG' },
-              { endpoint: '/pong5', description: '5 USD1 → 20,000 PONG' },
-              { endpoint: '/pong10', description: '10 USD1 → 40,000 PONG' },
+              { endpoint: '/pong1', description: '1 USD1 → 4,000 PONG?' },
+              { endpoint: '/pong5', description: '5 USD1 → 20,000 PONG?' },
+              { endpoint: '/pong10', description: '10 USD1 → 40,000 PONG?' },
             ].map((api) => (
               <div key={api.endpoint} style={styles.apiEndpoint}>
                 <code style={styles.apiCode}>POST {api.endpoint}</code>
