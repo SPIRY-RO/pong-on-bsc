@@ -333,20 +333,18 @@ export async function POST(req: NextRequest) {
       deadline: BigInt(deadline), // uint256 as BigInt
     }
 
-    console.log(`[/pong:${requestId}] ===== EIP-2612 PERMIT DETAILS =====`)
-    console.log(`[/pong:${requestId}] Domain:`, {
-      name: tokenName,
-      version: tokenVersion,
-      chainId: domainChainId,
-      verifyingContract: USD1_TOKEN,
-    })
-    console.log(`[/pong:${requestId}] Values:`, {
-      owner,
-      spender: facilitator,
-      value: PRICE_MINOR,
-      nonce: nonce.toString(),
-      deadline: deadline.toString(),
-    })
+    console.log(`[/pong:${requestId}] ===== EIP-2612 PERMIT CHALLENGE =====`)
+    console.log(`[/pong:${requestId}] Domain (being sent to frontend):`)
+    console.log(`[/pong:${requestId}]   name: "${tokenName}"`)
+    console.log(`[/pong:${requestId}]   version: "${tokenVersion}"`)
+    console.log(`[/pong:${requestId}]   chainId: ${domainChainId}`)
+    console.log(`[/pong:${requestId}]   verifyingContract: ${getAddress(USD1_TOKEN)}`)
+    console.log(`[/pong:${requestId}] Values (being sent to frontend):`)
+    console.log(`[/pong:${requestId}]   owner: ${values.owner}`)
+    console.log(`[/pong:${requestId}]   spender: ${values.spender}`)
+    console.log(`[/pong:${requestId}]   value: ${values.value.toString()}`)
+    console.log(`[/pong:${requestId}]   nonce: ${values.nonce.toString()}`)
+    console.log(`[/pong:${requestId}]   deadline: ${values.deadline.toString()}`)
 
     console.log(`[/pong:${requestId}] ===== SENDING 402 RESPONSE =====\\n`)
 

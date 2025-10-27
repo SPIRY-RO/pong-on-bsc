@@ -102,29 +102,24 @@ export async function POST(req: NextRequest) {
     console.log(`[Settle:${settlementId}] ===== VERIFYING SIGNATURE LOCALLY =====`)
 
     // Read token name and version for EIP-712 domain
+    // MUST match exactly what was used in challenge generation!
     let tokenName: string
-    let tokenVersion: string
+    let tokenVersion = '1' // USD1 doesn't have version(), always use "1"
 
     try {
-      [tokenName, tokenVersion] = await Promise.all([
-        publicClient.readContract({
-          address: USD1_TOKEN,
-          abi: usd1Abi,
-          functionName: 'name',
-        }) as Promise<string>,
-        publicClient.readContract({
-          address: USD1_TOKEN,
-          abi: usd1Abi,
-          functionName: 'version',
-        }) as Promise<string>,
-      ])
-      console.log(`[Settle:${settlementId}] Token: ${tokenName} v${tokenVersion}`)
-    } catch (e) {
-      // USD1 doesn't have version() - use default
+      tokenName = await publicClient.readContract({
+        address: USD1_TOKEN,
+        abi: usd1Abi,
+        functionName: 'name',
+      }) as string
+      console.log(`[Settle:${settlementId}] ✅ name() from contract: "${tokenName}"`)
+    } catch (e: any) {
+      // Fallback if name() fails
       tokenName = 'World Liberty Financial USD'
-      tokenVersion = '1'
-      console.log(`[Settle:${settlementId}] Using fallback: ${tokenName} v${tokenVersion}`)
+      console.log(`[Settle:${settlementId}] ⚠️ name() failed, using fallback: "${tokenName}"`)
     }
+
+    console.log(`[Settle:${settlementId}] Token: ${tokenName} v${tokenVersion}`)
 
     // Verify current nonce from contract
     const currentNonce = await publicClient.readContract({
@@ -175,14 +170,19 @@ export async function POST(req: NextRequest) {
       },
     }
 
-    console.log(`[Settle:${settlementId}] Domain:`, permitTypedData.domain)
-    console.log(`[Settle:${settlementId}] Message:`, {
-      owner: permitTypedData.message.owner,
-      spender: permitTypedData.message.spender,
-      value: permitTypedData.message.value.toString(),
-      nonce: permitTypedData.message.nonce.toString(),
-      deadline: permitTypedData.message.deadline.toString(),
-    })
+    console.log(`[Settle:${settlementId}] ===== VERIFICATION DATA =====`)
+    console.log(`[Settle:${settlementId}] Domain:`)
+    console.log(`[Settle:${settlementId}]   name: "${permitTypedData.domain.name}"`)
+    console.log(`[Settle:${settlementId}]   version: "${permitTypedData.domain.version}"`)
+    console.log(`[Settle:${settlementId}]   chainId: ${permitTypedData.domain.chainId}`)
+    console.log(`[Settle:${settlementId}]   verifyingContract: ${permitTypedData.domain.verifyingContract}`)
+    console.log(`[Settle:${settlementId}] Message:`)
+    console.log(`[Settle:${settlementId}]   owner: ${permitTypedData.message.owner}`)
+    console.log(`[Settle:${settlementId}]   spender: ${permitTypedData.message.spender}`)
+    console.log(`[Settle:${settlementId}]   value: ${permitTypedData.message.value.toString()}`)
+    console.log(`[Settle:${settlementId}]   nonce: ${permitTypedData.message.nonce.toString()}`)
+    console.log(`[Settle:${settlementId}]   deadline: ${permitTypedData.message.deadline.toString()}`)
+    console.log(`[Settle:${settlementId}] Signature: ${signature}`)
 
     // Verify signature using viem's verifyTypedData (x402-permit pattern)
     try {
@@ -194,7 +194,15 @@ export async function POST(req: NextRequest) {
 
       if (!isValid) {
         console.error(`[Settle:${settlementId}] ❌ SIGNATURE VERIFICATION FAILED!`)
-        console.error(`[Settle:${settlementId}]   Signature does not match expected signer`)
+        console.error(`[Settle:${settlementId}]   Expected signer: ${getAddress(owner)}`)
+        console.error(`[Settle:${settlementId}]   Signature: ${signature}`)
+        console.error(`[Settle:${settlementId}]`)
+        console.error(`[Settle:${settlementId}] 🔍 DEBUGGING TIPS:`)
+        console.error(`[Settle:${settlementId}]   1. Check the challenge logs to see what domain was sent to frontend`)
+        console.error(`[Settle:${settlementId}]   2. Domain name MUST be: "${tokenName}"`)
+        console.error(`[Settle:${settlementId}]   3. Domain version MUST be: "${tokenVersion}"`)
+        console.error(`[Settle:${settlementId}]   4. All addresses must be checksummed (getAddress())`)
+        console.error(`[Settle:${settlementId}]   5. Run: node test-signature-recovery.js ${owner} ${spender} ${value} ${nonce} ${deadline} ${signature}`)
         return NextResponse.json(
           {
             error: 'Invalid signature or unauthorized signer',
@@ -207,6 +215,7 @@ export async function POST(req: NextRequest) {
       console.log(`[Settle:${settlementId}] ✅ Signature verified successfully!`)
     } catch (verifyError: any) {
       console.error(`[Settle:${settlementId}] ❌ Signature verification error:`, verifyError.message)
+      console.error(`[Settle:${settlementId}] Stack:`, verifyError.stack)
       return NextResponse.json(
         {
           error: 'Signature verification failed',
