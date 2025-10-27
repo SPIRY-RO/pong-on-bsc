@@ -81,11 +81,33 @@ export default function Home() {
         return
       }
 
-      console.log('[Wallet] Requesting accounts...')
+      // CRITICAL: Use wallet_requestPermissions to force account selection
+      // This ensures the user explicitly picks which account to use
+      console.log('[Wallet] Requesting permission to connect...')
+      addStatus('🔄 Please select your account in MetaMask...')
+
+      try {
+        await window.ethereum.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }],
+        })
+      } catch (permError: any) {
+        if (permError.code === 4001) {
+          addStatus('❌ Connection cancelled')
+          return
+        }
+        console.log('[Wallet] Permission request failed, trying eth_requestAccounts...')
+      }
+
       const accounts = await window.ethereum.request({
-        method: 'eth_requestAccounts',
+        method: 'eth_accounts',
       })
       console.log('[Wallet] Accounts:', accounts)
+
+      if (!accounts || accounts.length === 0) {
+        addStatus('❌ No accounts found')
+        return
+      }
 
       const chainId = await window.ethereum.request({ method: 'eth_chainId' })
       console.log('[Wallet] Current chainId:', chainId, 'Expected:', EXPECTED_CHAIN_ID)
@@ -110,11 +132,11 @@ export default function Home() {
       }
 
       const selectedAccount = accounts[0].toLowerCase()
-      console.log('[Wallet] Setting account:', selectedAccount)
+      console.log('[Wallet] Selected account:', selectedAccount)
       setAccount(selectedAccount)
       addStatus(`✅ Connected: ${selectedAccount.slice(0, 6)}...${selectedAccount.slice(-4)}`)
       console.log('[Wallet] Connection successful!')
-      console.log('[Wallet] Account state should now be:', selectedAccount)
+      console.log('[Wallet] 🎯 THIS is the account that will be used for signing!')
     } catch (error) {
       console.error('[Wallet] Connection error:', error)
       addStatus(`❌ Connection failed: ${(error as Error).message}`)
@@ -246,33 +268,71 @@ export default function Home() {
       console.log(`[Pay:${callId}] Domain:`, JSON.stringify(challenge.domain, null, 2))
       console.log(`[Pay:${callId}] Message:`, JSON.stringify(challenge.values, null, 2))
 
-      // CRITICAL: Double-check MetaMask is on the RIGHT account
-      // Force MetaMask to switch to the correct account if needed
-      try {
-        await window.ethereum.request({
-          method: 'wallet_requestPermissions',
-          params: [{ eth_accounts: {} }],
-        })
-      } catch (permError) {
-        console.log(`[Pay:${callId}] Permission request skipped (user might have cancelled)`)
+      // CRITICAL: Verify the account one more time before signing
+      console.log(`[Pay:${callId}] 🚨 FINAL VERIFICATION BEFORE SIGNING:`)
+      console.log(`[Pay:${callId}]   Current MetaMask account: ${currentAccount}`)
+      console.log(`[Pay:${callId}]   Challenge owner: ${challenge.values.owner.toLowerCase()}`)
+      console.log(`[Pay:${callId}]   Challenge spender: ${challenge.values.spender.toLowerCase()}`)
+      console.log(`[Pay:${callId}]   Match: ${currentAccount === challenge.values.owner.toLowerCase()}`)
+
+      if (currentAccount !== challenge.values.owner.toLowerCase()) {
+        console.error(`[Pay:${callId}] ❌ ACCOUNT MISMATCH!`)
+        console.error(`[Pay:${callId}]   MetaMask has: ${currentAccount}`)
+        console.error(`[Pay:${callId}]   Challenge expects: ${challenge.values.owner.toLowerCase()}`)
+        throw new Error(
+          `Account mismatch! MetaMask is on ${currentAccount.slice(0, 6)}... but challenge expects ${challenge.values.owner.slice(0, 6)}...`
+        )
       }
 
-      // Re-check the account after permission request
-      const finalAccounts = await window.ethereum.request({ method: 'eth_accounts' })
-      const finalAccount = finalAccounts[0]?.toLowerCase()
+      // CRITICAL: Force account selection to ensure correct account signs
+      // Request fresh permissions to show account selector
+      addStatus('🔄 Please select your account in MetaMask...')
 
-      console.log(`[Pay:${callId}] Final account check before signing: ${finalAccount}`)
-
-      if (finalAccount !== challenge.values.owner.toLowerCase()) {
-        throw new Error(
-          `CRITICAL: MetaMask account (${finalAccount.slice(0, 6)}...) does NOT match challenge owner (${challenge.values.owner.slice(0, 6)}...)! Please switch accounts in MetaMask.`
+      try {
+        // This will show MetaMask account selector
+        const selectedAccounts = await window.ethereum.request({
+          method: 'wallet_requestPermissions',
+          params: [{
+            eth_accounts: {},
+          }],
+        }).then(() =>
+          window.ethereum.request({ method: 'eth_accounts' })
         )
+
+        const selectedAccount = selectedAccounts[0]?.toLowerCase()
+        console.log(`[Pay:${callId}] User selected account: ${selectedAccount}`)
+        console.log(`[Pay:${callId}] Challenge expects: ${challenge.values.owner.toLowerCase()}`)
+
+        if (!selectedAccount) {
+          throw new Error('No account selected in MetaMask')
+        }
+
+        if (selectedAccount !== challenge.values.owner.toLowerCase()) {
+          alert(
+            `❌ WRONG ACCOUNT SELECTED!\n\n` +
+            `You selected: ${selectedAccount}\n\n` +
+            `But the challenge is for: ${challenge.values.owner}\n\n` +
+            `Please try again and select the CORRECT account!`
+          )
+          throw new Error(`Wrong account selected. Expected ${challenge.values.owner} but got ${selectedAccount}`)
+        }
+
+        addStatus('✅ Correct account selected!')
+        console.log(`[Pay:${callId}] ✅ Correct account selected, proceeding to sign...`)
+
+      } catch (permError: any) {
+        if (permError.code === 4001) {
+          throw new Error('User rejected account selection')
+        }
+        console.error(`[Pay:${callId}] Permission request failed:`, permError)
+        // If permission request fails, continue but warn user
+        console.warn(`[Pay:${callId}] Could not verify account selection, continuing anyway...`)
       }
 
       const signature = await window.ethereum.request({
         method: 'eth_signTypedData_v4',
         params: [
-          finalAccount, // Use the verified final account
+          currentAccount, // Use current account
           JSON.stringify(typedData),
         ],
       })
@@ -316,9 +376,25 @@ export default function Home() {
 
         if (recoveredAddress.toLowerCase() !== challenge.values.owner.toLowerCase()) {
           console.error(`[Pay:${callId}] ❌ SIGNATURE MISMATCH DETECTED IN FRONTEND!`)
-          console.error(`[Pay:${callId}]   This means MetaMask signed with the wrong account or wrong data`)
+          console.error(`[Pay:${callId}]   Expected: ${challenge.values.owner}`)
+          console.error(`[Pay:${callId}]   Got:      ${recoveredAddress}`)
+          console.error(`[Pay:${callId}]   This means MetaMask signed with a DIFFERENT account!`)
+
+          alert(
+            `❌ SIGNATURE ERROR!\n\n` +
+            `MetaMask signed with the WRONG account!\n\n` +
+            `Expected account:\n${challenge.values.owner}\n\n` +
+            `But MetaMask used:\n${recoveredAddress}\n\n` +
+            `SOLUTION:\n` +
+            `1. Open MetaMask\n` +
+            `2. Click the account icon (top right)\n` +
+            `3. SELECT the account: ${challenge.values.owner.slice(0, 8)}...\n` +
+            `4. Try the transaction again\n\n` +
+            `Make sure the CORRECT account has the checkmark (✓) in MetaMask!`
+          )
+
           throw new Error(
-            `Signature verification failed! Expected ${challenge.values.owner.slice(0, 6)}... but got ${recoveredAddress.slice(0, 6)}...`
+            `Signature verification failed! MetaMask signed with ${recoveredAddress.slice(0, 6)}... instead of ${challenge.values.owner.slice(0, 6)}...`
           )
         }
 
