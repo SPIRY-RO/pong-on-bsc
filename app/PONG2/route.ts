@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { publicClient, getWalletClient } from '@/lib/viem'
 import { usd1Abi } from '@/lib/usd1Abi'
+import { getAddress } from 'viem'
 
 // USD1 Token & Treasury (immutable, official addresses on BSC)
 const USD1_TOKEN = '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' as `0x${string}`
@@ -330,11 +331,12 @@ export async function POST(req: NextRequest) {
     // Generate EIP-2612 Permit challenge
     const deadline = Math.floor(Date.now() / 1000) + CHALLENGE_MINUTES * 60
 
+    // x402-permit pattern: Use getAddress() for address normalization (checksumming)
     const domain = {
       name: tokenName,
       version: tokenVersion,
       chainId: domainChainId,
-      verifyingContract: USD1_TOKEN,
+      verifyingContract: getAddress(USD1_TOKEN),
     }
 
     const types = {
@@ -349,9 +351,10 @@ export async function POST(req: NextRequest) {
 
     // CRITICAL: Values must match EXACTLY what the contract expects
     // Use BigInt for uint256 values so MetaMask encodes them correctly
+    // Use getAddress() for proper address normalization (x402-permit pattern)
     const values = {
-      owner: owner as `0x${string}`,
-      spender: facilitator as `0x${string}`,
+      owner: getAddress(owner) as `0x${string}`,
+      spender: getAddress(facilitator) as `0x${string}`,
       value: BigInt(PRICE_MINOR), // uint256 as BigInt
       nonce: nonce, // uint256 as BigInt (already bigint from contract read)
       deadline: BigInt(deadline), // uint256 as BigInt
