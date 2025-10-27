@@ -274,6 +274,18 @@ export default function Home() {
         />
       ))}
 
+      {/* About Button - Top Right */}
+      <motion.div
+        style={styles.topNav}
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.4 }}
+      >
+        <Link href="/about" style={styles.aboutButtonTop}>
+          📄 About & Disclaimer
+        </Link>
+      </motion.div>
+
       {/* Hero Section - Compact */}
       <motion.div
         style={styles.hero}
@@ -711,18 +723,6 @@ export default function Home() {
             Browser access shows paywall interface. API access returns 402 Payment Required with EIP-2612 challenge.
           </div>
         </motion.div>
-
-        {/* About Link */}
-        <motion.div
-          style={styles.aboutSection}
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 1.4, duration: 0.5 }}
-        >
-          <Link href="/about" style={styles.aboutLink}>
-            📄 About & Disclaimer
-          </Link>
-        </motion.div>
       </motion.footer>
     </div>
   )
@@ -736,6 +736,29 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '16px',
     position: 'relative',
     overflow: 'hidden',
+  },
+
+  // Top Navigation
+  topNav: {
+    position: 'absolute',
+    top: '20px',
+    right: '20px',
+    zIndex: 100,
+  },
+  aboutButtonTop: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    background: 'var(--bg-secondary)',
+    border: '1px solid var(--border-color)',
+    color: 'var(--text-primary)',
+    textDecoration: 'none',
+    padding: '10px 20px',
+    borderRadius: '12px',
+    fontSize: '13px',
+    fontWeight: 600,
+    transition: 'all 0.3s ease',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
   },
 
   // Animated Background - Subtle
@@ -1494,26 +1517,6 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(59, 130, 246, 0.05)',
     borderRadius: '8px',
     border: '1px solid rgba(59, 130, 246, 0.1)',
-  },
-
-  // About Section
-  aboutSection: {
-    marginTop: '32px',
-    paddingTop: '24px',
-    borderTop: '1px solid var(--border-color)',
-    textAlign: 'center',
-  },
-  aboutLink: {
-    display: 'inline-block',
-    fontSize: '14px',
-    color: 'var(--text-primary)',
-    textDecoration: 'none',
-    fontWeight: 600,
-    padding: '12px 24px',
-    background: 'var(--bg-elevated)',
-    border: '1px solid var(--border-color)',
-    borderRadius: '10px',
-    transition: 'all 0.3s ease',
   },
 }
 
