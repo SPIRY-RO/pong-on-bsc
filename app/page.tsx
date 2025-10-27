@@ -246,10 +246,33 @@ export default function Home() {
       console.log(`[Pay:${callId}] Domain:`, JSON.stringify(challenge.domain, null, 2))
       console.log(`[Pay:${callId}] Message:`, JSON.stringify(challenge.values, null, 2))
 
+      // CRITICAL: Double-check MetaMask is on the RIGHT account
+      // Force MetaMask to switch to the correct account if needed
+      try {
+        await window.ethereum.request({
+          method: 'wallet_requestPermissions',
+          params: [{ eth_accounts: {} }],
+        })
+      } catch (permError) {
+        console.log(`[Pay:${callId}] Permission request skipped (user might have cancelled)`)
+      }
+
+      // Re-check the account after permission request
+      const finalAccounts = await window.ethereum.request({ method: 'eth_accounts' })
+      const finalAccount = finalAccounts[0]?.toLowerCase()
+
+      console.log(`[Pay:${callId}] Final account check before signing: ${finalAccount}`)
+
+      if (finalAccount !== challenge.values.owner.toLowerCase()) {
+        throw new Error(
+          `CRITICAL: MetaMask account (${finalAccount.slice(0, 6)}...) does NOT match challenge owner (${challenge.values.owner.slice(0, 6)}...)! Please switch accounts in MetaMask.`
+        )
+      }
+
       const signature = await window.ethereum.request({
         method: 'eth_signTypedData_v4',
         params: [
-          currentAccount, // Use current account, not cached state
+          finalAccount, // Use the verified final account
           JSON.stringify(typedData),
         ],
       })
