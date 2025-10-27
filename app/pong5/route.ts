@@ -14,7 +14,7 @@ const PONG_PER_USD1 = 4000
 const PONG_ALLOCATION = TIER_AMOUNT * PONG_PER_USD1
 
 // Will be read from contract dynamically
-const TOKEN_NAME_FALLBACK = 'USD1'
+const TOKEN_NAME_FALLBACK = 'World Liberty Financial USD'
 const TOKEN_VERSION_FALLBACK = '1'
 
 // Configurable via env
