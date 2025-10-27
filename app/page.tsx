@@ -43,6 +43,33 @@ export default function Home() {
     }
   }, [account])
 
+  // Listen for MetaMask account changes
+  useEffect(() => {
+    if (!window.ethereum) return
+
+    const handleAccountsChanged = (accounts: string[]) => {
+      console.log('[MetaMask] Account changed:', accounts)
+      if (accounts.length === 0) {
+        // User disconnected
+        setAccount('')
+        addStatus('⚠️ Wallet disconnected')
+      } else {
+        const newAccount = accounts[0].toLowerCase()
+        console.log('[MetaMask] Switching to new account:', newAccount)
+        setAccount(newAccount)
+        addStatus(`✅ Switched to: ${newAccount.slice(0, 6)}...${newAccount.slice(-4)}`)
+        // Reset transaction state when account changes
+        resetTransaction()
+      }
+    }
+
+    window.ethereum.on('accountsChanged', handleAccountsChanged)
+
+    return () => {
+      window.ethereum.removeListener('accountsChanged', handleAccountsChanged)
+    }
+  }, [])
+
   const connectWallet = async () => {
     try {
       console.log('[Wallet] Starting connection...')
@@ -169,10 +196,33 @@ export default function Home() {
       console.log(`[Pay:${callId}] ===== REQUESTING SIGNATURE FROM METAMASK =====`)
       console.log(`[Pay:${callId}] This should appear ONLY ONCE!`)
 
+      // CRITICAL: Get the CURRENT account from MetaMask before signing
+      // User might have switched accounts after connecting!
+      const currentAccounts = await window.ethereum.request({
+        method: 'eth_accounts',
+      })
+      const currentAccount = currentAccounts[0]?.toLowerCase()
+
+      console.log(`[Pay:${callId}] Account in state: ${account}`)
+      console.log(`[Pay:${callId}] Current MetaMask account: ${currentAccount}`)
+
+      if (!currentAccount) {
+        throw new Error('No account selected in MetaMask')
+      }
+
+      if (currentAccount !== account) {
+        console.warn(`[Pay:${callId}] ⚠️ ACCOUNT MISMATCH DETECTED!`)
+        console.warn(`[Pay:${callId}]   Connected: ${account}`)
+        console.warn(`[Pay:${callId}]   Current:   ${currentAccount}`)
+        throw new Error(
+          `Account mismatch! You switched MetaMask accounts. Please refresh and reconnect with ${currentAccount.slice(0, 6)}...${currentAccount.slice(-4)}`
+        )
+      }
+
       const signature = await window.ethereum.request({
         method: 'eth_signTypedData_v4',
         params: [
-          account,
+          currentAccount, // Use current account, not cached state
           JSON.stringify({
             domain: challenge.domain,
             types: challenge.types,
