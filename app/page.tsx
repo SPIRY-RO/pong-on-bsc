@@ -123,15 +123,30 @@ export default function Home() {
     setSelectedTier(tierAmount)
     setTransactionStage('requesting')
 
+    // Map tier amount to endpoint
+    const tierEndpoints: Record<number, string> = {
+      1: '/pong',      // Tier 1: 1 USD1 → 4,000 PONG
+      5: '/pong5',     // Tier 2: 5 USD1 → 20,000 PONG (MOST POPULAR)
+      10: '/PONG2',    // Tier 3: 10 USD1 → 40,000 PONG
+    }
+    const endpoint = tierEndpoints[tierAmount]
+
+    if (!endpoint) {
+      console.error(`[Pay:${callId}] Invalid tier amount:`, tierAmount)
+      paymentInProgressRef.current = false
+      addStatus('❌ Invalid tier selected')
+      return
+    }
+
     try {
       // Step 1: Request challenge
       addStatus('🔄 Requesting EIP-2612 Permit challenge...')
-      console.log(`[Pay:${callId}] Fetching challenge from /api/pong`)
+      console.log(`[Pay:${callId}] Fetching challenge from ${endpoint}`)
 
-      const challengeRes = await fetch('/api/pong', {
+      const challengeRes = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner: account, amount: tierAmount }),
+        body: JSON.stringify({ owner: account }),
       })
 
       console.log(`[Pay:${callId}] Challenge response status:`, challengeRes.status)
@@ -196,7 +211,7 @@ export default function Home() {
 
       console.log('Settle payload:', settlePayload)
 
-      const settleRes = await fetch('/api/pong/settle', {
+      const settleRes = await fetch('/settle', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(settlePayload),
