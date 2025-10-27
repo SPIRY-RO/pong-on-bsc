@@ -96,10 +96,77 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // NOTE: Skip local signature verification - let the contract verify it
-    // Local verification can fail due to subtle domain/type differences
-    // The contract's permit() will revert if signature is invalid anyway
-    console.log(`[Settle:${settlementId}] Skipping local verification - contract will validate`)
+    // Verify permit signature - EXACTLY as WTFLabs x402-permit does
+    console.log(`[Settle:${settlementId}] ===== VERIFYING SIGNATURE (WTFLabs pattern) =====`)
+
+    // Read token name and version for EIP-712 domain (same as challenge generation)
+    let tokenName = 'World Liberty Financial USD'
+    let tokenVersion = '1'
+
+    try {
+      tokenName = await publicClient.readContract({
+        address: USD1_TOKEN,
+        abi: usd1Abi,
+        functionName: 'name',
+      })
+      console.log(`[Settle:${settlementId}] Token name from contract: "${tokenName}"`)
+    } catch (e: any) {
+      console.log(`[Settle:${settlementId}] Using fallback token name: "${tokenName}"`)
+    }
+
+    const permitTypedData = {
+      types: {
+        Permit: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      },
+      domain: {
+        name: tokenName,
+        version: tokenVersion,
+        chainId: 56,
+        verifyingContract: USD1_TOKEN,
+      },
+      primaryType: 'Permit' as const,
+      message: {
+        owner: owner as `0x${string}`,
+        spender: spender as `0x${string}`,
+        value: BigInt(value),
+        nonce: BigInt(nonce),
+        deadline: BigInt(deadline),
+      },
+    }
+
+    console.log(`[Settle:${settlementId}] Verifying typed data with:`)
+    console.log(`[Settle:${settlementId}]   Domain:`, permitTypedData.domain)
+    console.log(`[Settle:${settlementId}]   Message:`, {
+      owner,
+      spender,
+      value,
+      nonce,
+      deadline,
+    })
+
+    const isValidSignature = await publicClient.verifyTypedData({
+      address: owner as `0x${string}`,
+      ...permitTypedData,
+      signature: signature as `0x${string}`,
+    })
+
+    console.log(`[Settle:${settlementId}] Signature verification result:`, isValidSignature)
+
+    if (!isValidSignature) {
+      console.error(`[Settle:${settlementId}] ❌ INVALID SIGNATURE!`)
+      return NextResponse.json(
+        { error: 'Invalid signature - signature verification failed' },
+        { status: 422 }
+      )
+    }
+
+    console.log(`[Settle:${settlementId}] ✅ Signature verified successfully!`)
 
     // Verify current nonce from contract
     const currentNonce = await publicClient.readContract({
