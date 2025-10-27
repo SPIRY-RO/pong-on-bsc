@@ -138,8 +138,80 @@ export async function POST(req: NextRequest) {
 
     if (currentNonce.toString() !== nonce.toString()) {
       console.error(`[Settle:${settlementId}] ❌ NONCE MISMATCH!`)
+      console.error(`[Settle:${settlementId}]   Expected: ${currentNonce.toString()}`)
+      console.error(`[Settle:${settlementId}]   Got: ${nonce}`)
       return NextResponse.json(
         { error: 'Nonce mismatch - please request a new challenge' },
+        { status: 422 }
+      )
+    }
+
+    console.log(`[Settle:${settlementId}] ✅ Nonce matches!`)
+
+    // Construct EIP-712 typed data for signature verification (x402-permit pattern)
+    const permitTypedData = {
+      types: {
+        Permit: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      },
+      domain: {
+        name: tokenName,
+        version: tokenVersion,
+        chainId: 56,
+        verifyingContract: getAddress(USD1_TOKEN),
+      },
+      primaryType: 'Permit' as const,
+      message: {
+        owner: getAddress(owner),
+        spender: getAddress(spender),
+        value: BigInt(value),
+        nonce: BigInt(nonce),
+        deadline: BigInt(deadline),
+      },
+    }
+
+    console.log(`[Settle:${settlementId}] Domain:`, permitTypedData.domain)
+    console.log(`[Settle:${settlementId}] Message:`, {
+      owner: permitTypedData.message.owner,
+      spender: permitTypedData.message.spender,
+      value: permitTypedData.message.value.toString(),
+      nonce: permitTypedData.message.nonce.toString(),
+      deadline: permitTypedData.message.deadline.toString(),
+    })
+
+    // Verify signature using viem's verifyTypedData (x402-permit pattern)
+    try {
+      const isValid = await publicClient.verifyTypedData({
+        address: getAddress(owner) as `0x${string}`,
+        ...permitTypedData,
+        signature: signature as Hex,
+      })
+
+      if (!isValid) {
+        console.error(`[Settle:${settlementId}] ❌ SIGNATURE VERIFICATION FAILED!`)
+        console.error(`[Settle:${settlementId}]   Signature does not match expected signer`)
+        return NextResponse.json(
+          {
+            error: 'Invalid signature or unauthorized signer',
+            details: 'Signature verification failed - the signature does not match the owner address'
+          },
+          { status: 422 }
+        )
+      }
+
+      console.log(`[Settle:${settlementId}] ✅ Signature verified successfully!`)
+    } catch (verifyError: any) {
+      console.error(`[Settle:${settlementId}] ❌ Signature verification error:`, verifyError.message)
+      return NextResponse.json(
+        {
+          error: 'Signature verification failed',
+          details: verifyError.message
+        },
         { status: 422 }
       )
     }
@@ -163,15 +235,16 @@ export async function POST(req: NextRequest) {
     console.log(`[Settle:${settlementId}]   s: ${s}`)
 
     // Send both transactions in parallel (x402-permit pattern)
+    // Use getAddress() for proper address normalization (checksumming)
     const [permitHash, transferHash] = await Promise.all([
       // Transaction 1: permit()
       walletClient.writeContract({
-        address: USD1_TOKEN,
+        address: getAddress(USD1_TOKEN) as `0x${string}`,
         abi: usd1Abi,
         functionName: 'permit',
         args: [
-          owner as `0x${string}`,
-          spender as `0x${string}`,
+          getAddress(owner) as `0x${string}`,
+          getAddress(spender) as `0x${string}`,
           BigInt(value),
           BigInt(deadline),
           v,
@@ -183,12 +256,12 @@ export async function POST(req: NextRequest) {
       }),
       // Transaction 2: transferFrom()
       walletClient.writeContract({
-        address: USD1_TOKEN,
+        address: getAddress(USD1_TOKEN) as `0x${string}`,
         abi: usd1Abi,
         functionName: 'transferFrom',
         args: [
-          owner as `0x${string}`,
-          TREASURY,
+          getAddress(owner) as `0x${string}`,
+          getAddress(TREASURY) as `0x${string}`,
           BigInt(value),
         ] as const,
         chain: null,
