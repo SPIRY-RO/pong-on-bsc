@@ -183,25 +183,12 @@ export default function Home() {
       })
 
       console.log(`[Pay:${callId}] Signature received from MetaMask`)
+      console.log(`[Pay:${callId}] Signature:`, signature)
 
       addStatus('✅ Signature obtained')
 
-      // Extract v, r, s from signature
-      const sig = signature.slice(2)
-      const r = '0x' + sig.slice(0, 64)
-      const s = '0x' + sig.slice(64, 128)
-      let v = parseInt(sig.slice(128, 130), 16)
-
-      // CRITICAL: EIP-2612 expects v to be 27 or 28, not 0 or 1
-      // MetaMask may return 0/1, so we need to normalize
-      if (v < 27) {
-        v = v + 27
-      }
-
-      console.log(`[Pay:${callId}] Signature components:`, { v, r: r.slice(0, 10) + '...', s: s.slice(0, 10) + '...' })
-      addStatus(`📝 Signature v=${v}, r=${r.slice(0, 10)}..., s=${s.slice(0, 10)}...`)
-
       // Step 3: Settle with EIP-2612 Permit
+      // Send FULL signature to backend (not split v,r,s)
       setTransactionStage('settling')
       addStatus('⚡ Settling transaction on-chain...')
 
@@ -211,9 +198,7 @@ export default function Home() {
         value: challenge.values.value,
         nonce: challenge.values.nonce,
         deadline: challenge.values.deadline,
-        v,
-        r,
-        s,
+        signature: signature, // Send full signature (0x + 130 hex chars)
       }
 
       console.log('Settle payload:', settlePayload)

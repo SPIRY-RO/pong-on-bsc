@@ -17,7 +17,7 @@ export async function POST(req: NextRequest) {
 
   try {
     const body = await req.json()
-    const { owner, spender, value, nonce, deadline, v, r, s } = body
+    const { owner, spender, value, nonce, deadline, signature } = body
 
     console.log(`[Settle:${settlementId}] EIP-2612 Permit received:`, {
       owner,
@@ -25,19 +25,34 @@ export async function POST(req: NextRequest) {
       value,
       nonce,
       deadline,
-      v,
-      r: r?.slice(0, 10) + '...',
-      s: s?.slice(0, 10) + '...',
+      signature: signature?.slice(0, 20) + '...' + signature?.slice(-10),
     })
 
     // Validation
-    if (!owner || !spender || !value || nonce === undefined || !deadline || !v || !r || !s) {
+    if (!owner || !spender || !value || nonce === undefined || !deadline || !signature) {
       console.error(`[Settle:${settlementId}] Missing fields`)
       return NextResponse.json(
         { error: 'Missing required fields' },
         { status: 400 }
       )
     }
+
+    // Split signature into v, r, s (exactly as x402-permit does)
+    const sig = signature.slice(2) // Remove 0x prefix
+    const r = `0x${sig.slice(0, 64)}` as `0x${string}`
+    const s = `0x${sig.slice(64, 128)}` as `0x${string}`
+    let v = parseInt(sig.slice(128, 130), 16)
+
+    // Handle legacy v values (normalize 0/1 to 27/28)
+    if (v < 27) {
+      v += 27
+    }
+
+    console.log(`[Settle:${settlementId}] Signature components:`, {
+      v,
+      r: r.slice(0, 10) + '...',
+      s: s.slice(0, 10) + '...',
+    })
 
     // Validate value - must be 1, 5, or 10 USD1 (in minor units with 18 decimals)
     const validValues = [
@@ -81,27 +96,61 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Step 1: Execute permit() to set allowance
-    console.log(`[Settle:${settlementId}] ===== EXECUTING PERMIT() =====`)
-    console.log(`[Settle:${settlementId}] Permit parameters:`, {
-      owner,
-      spender,
-      value,
-      deadline,
-      v,
-      r: r.slice(0, 10) + '...',
-      s: s.slice(0, 10) + '...',
-    })
+    // CRITICAL: Verify signature locally BEFORE sending to contract
+    // This matches x402-permit implementation exactly
+    console.log(`[Settle:${settlementId}] ===== VERIFYING SIGNATURE LOCALLY =====`)
 
-    // Convert to BigInt for logging
-    const valueBigInt = BigInt(value)
-    const deadlineBigInt = BigInt(deadline)
+    const permitTypedData = {
+      domain: {
+        name: 'World Liberty Financial USD',
+        version: '1',
+        chainId: 56,
+        verifyingContract: USD1_TOKEN,
+      },
+      types: {
+        Permit: [
+          { name: 'owner', type: 'address' },
+          { name: 'spender', type: 'address' },
+          { name: 'value', type: 'uint256' },
+          { name: 'nonce', type: 'uint256' },
+          { name: 'deadline', type: 'uint256' },
+        ],
+      },
+      primaryType: 'Permit' as const,
+      message: {
+        owner: owner as `0x${string}`,
+        spender: spender as `0x${string}`,
+        value: value,
+        nonce: nonce,
+        deadline: deadline,
+      },
+    }
 
-    console.log(`[Settle:${settlementId}] BigInt conversions:`, {
-      value: valueBigInt.toString(),
-      deadline: deadlineBigInt.toString(),
-      nonce: nonce.toString(),
-    })
+    // Use full signature directly from client (no reconstruction needed)
+    let isValidSignature: boolean
+    try {
+      isValidSignature = await publicClient.verifyTypedData({
+        address: owner as `0x${string}`,
+        ...permitTypedData,
+        signature: signature as `0x${string}`,
+      })
+    } catch (e: any) {
+      console.error(`[Settle:${settlementId}] ❌ Signature verification failed:`, e.message)
+      return NextResponse.json(
+        { error: 'Invalid signature', details: e.message },
+        { status: 422 }
+      )
+    }
+
+    if (!isValidSignature) {
+      console.error(`[Settle:${settlementId}] ❌ Signature verification returned false`)
+      return NextResponse.json(
+        { error: 'Invalid signature - could not verify EIP-712 signature' },
+        { status: 422 }
+      )
+    }
+
+    console.log(`[Settle:${settlementId}] ✅ Signature verified locally!`)
 
     // Verify current nonce from contract
     const currentNonce = await publicClient.readContract({
@@ -115,56 +164,73 @@ export async function POST(req: NextRequest) {
 
     if (currentNonce.toString() !== nonce.toString()) {
       console.error(`[Settle:${settlementId}] ❌ NONCE MISMATCH!`)
-      console.error(`[Settle:${settlementId}]   Expected: ${currentNonce.toString()}`)
-      console.error(`[Settle:${settlementId}]   Got: ${nonce}`)
       return NextResponse.json(
         { error: 'Nonce mismatch - please request a new challenge' },
         { status: 422 }
       )
     }
 
-    const permitHash = await walletClient.writeContract({
-      address: USD1_TOKEN,
-      abi: usd1Abi,
-      functionName: 'permit',
-      args: [
-        owner as `0x${string}`,
-        spender as `0x${string}`,
-        BigInt(value),
-        BigInt(deadline),
-        v,
-        r as `0x${string}`,
-        s as `0x${string}`,
-      ] as const,
-      chain: null,
+    // Get facilitator nonce for parallel transaction submission
+    const facilitatorNonce = await publicClient.getTransactionCount({
+      address: walletClient.account.address,
     })
+
+    console.log(`[Settle:${settlementId}] ===== EXECUTING PERMIT() + TRANSFERFROM() IN PARALLEL =====`)
+    console.log(`[Settle:${settlementId}] Facilitator nonce: ${facilitatorNonce}`)
+
+    // Send both transactions in parallel (x402-permit pattern)
+    const [permitHash, transferHash] = await Promise.all([
+      // Transaction 1: permit()
+      walletClient.writeContract({
+        address: USD1_TOKEN,
+        abi: usd1Abi,
+        functionName: 'permit',
+        args: [
+          owner as `0x${string}`,
+          spender as `0x${string}`,
+          BigInt(value),
+          BigInt(deadline),
+          v,
+          r as `0x${string}`,
+          s as `0x${string}`,
+        ] as const,
+        chain: null,
+        nonce: facilitatorNonce,
+      }),
+      // Transaction 2: transferFrom()
+      walletClient.writeContract({
+        address: USD1_TOKEN,
+        abi: usd1Abi,
+        functionName: 'transferFrom',
+        args: [
+          owner as `0x${string}`,
+          TREASURY,
+          BigInt(value),
+        ] as const,
+        chain: null,
+        nonce: facilitatorNonce + 1,
+      }),
+    ])
 
     console.log(`[Settle:${settlementId}] Permit tx sent:`, permitHash)
-
-    // Wait for permit confirmation
-    await publicClient.waitForTransactionReceipt({ hash: permitHash })
-    console.log(`[Settle:${settlementId}] Permit confirmed!`)
-
-    // Step 2: Execute transferFrom() to move tokens
-    console.log(`[Settle:${settlementId}] Step 2: Executing transferFrom()...`)
-
-    const transferHash = await walletClient.writeContract({
-      address: USD1_TOKEN,
-      abi: usd1Abi,
-      functionName: 'transferFrom',
-      args: [
-        owner as `0x${string}`,
-        TREASURY,
-        BigInt(value),
-      ] as const,
-      chain: null,
-    })
-
     console.log(`[Settle:${settlementId}] Transfer tx sent:`, transferHash)
 
-    // Wait for transfer confirmation
-    await publicClient.waitForTransactionReceipt({ hash: transferHash })
+    // Wait for both transactions in parallel
+    const [permitReceipt, transferReceipt] = await Promise.all([
+      publicClient.waitForTransactionReceipt({ hash: permitHash }),
+      publicClient.waitForTransactionReceipt({ hash: transferHash }),
+    ])
+
+    console.log(`[Settle:${settlementId}] Permit confirmed!`)
     console.log(`[Settle:${settlementId}] Transfer confirmed!`)
+
+    if (transferReceipt.status !== 'success') {
+      console.error(`[Settle:${settlementId}] ❌ Transfer failed!`)
+      return NextResponse.json(
+        { error: 'Transfer transaction failed' },
+        { status: 400 }
+      )
+    }
 
     // Calculate PONG allocation based on actual value transferred (18 decimals)
     const allocationPONG = (Number(BigInt(value) / BigInt(10 ** 18))) * PONG_PER_USD1
