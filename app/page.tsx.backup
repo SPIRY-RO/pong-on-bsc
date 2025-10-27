@@ -190,15 +190,8 @@ export default function Home() {
       const sig = signature.slice(2)
       const r = '0x' + sig.slice(0, 64)
       const s = '0x' + sig.slice(64, 128)
-      let v = parseInt(sig.slice(128, 130), 16)
+      const v = parseInt(sig.slice(128, 130), 16)
 
-      // CRITICAL: EIP-2612 expects v to be 27 or 28, not 0 or 1
-      // MetaMask may return 0/1, so we need to normalize
-      if (v < 27) {
-        v = v + 27
-      }
-
-      console.log(`[Pay:${callId}] Signature components:`, { v, r: r.slice(0, 10) + '...', s: s.slice(0, 10) + '...' })
       addStatus(`📝 Signature v=${v}, r=${r.slice(0, 10)}..., s=${s.slice(0, 10)}...`)
 
       // Step 3: Settle with EIP-2612 Permit
