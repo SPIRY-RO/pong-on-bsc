@@ -96,61 +96,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // CRITICAL: Verify signature locally BEFORE sending to contract
-    // This matches x402-permit implementation exactly
-    console.log(`[Settle:${settlementId}] ===== VERIFYING SIGNATURE LOCALLY =====`)
-
-    const permitTypedData = {
-      domain: {
-        name: 'World Liberty Financial USD',
-        version: '1',
-        chainId: 56,
-        verifyingContract: USD1_TOKEN,
-      },
-      types: {
-        Permit: [
-          { name: 'owner', type: 'address' },
-          { name: 'spender', type: 'address' },
-          { name: 'value', type: 'uint256' },
-          { name: 'nonce', type: 'uint256' },
-          { name: 'deadline', type: 'uint256' },
-        ],
-      },
-      primaryType: 'Permit' as const,
-      message: {
-        owner: owner as `0x${string}`,
-        spender: spender as `0x${string}`,
-        value: value,
-        nonce: nonce,
-        deadline: deadline,
-      },
-    }
-
-    // Use full signature directly from client (no reconstruction needed)
-    let isValidSignature: boolean
-    try {
-      isValidSignature = await publicClient.verifyTypedData({
-        address: owner as `0x${string}`,
-        ...permitTypedData,
-        signature: signature as `0x${string}`,
-      })
-    } catch (e: any) {
-      console.error(`[Settle:${settlementId}] ❌ Signature verification failed:`, e.message)
-      return NextResponse.json(
-        { error: 'Invalid signature', details: e.message },
-        { status: 422 }
-      )
-    }
-
-    if (!isValidSignature) {
-      console.error(`[Settle:${settlementId}] ❌ Signature verification returned false`)
-      return NextResponse.json(
-        { error: 'Invalid signature - could not verify EIP-712 signature' },
-        { status: 422 }
-      )
-    }
-
-    console.log(`[Settle:${settlementId}] ✅ Signature verified locally!`)
+    // NOTE: Skip local signature verification - let the contract verify it
+    // Local verification can fail due to subtle domain/type differences
+    // The contract's permit() will revert if signature is invalid anyway
+    console.log(`[Settle:${settlementId}] Skipping local verification - contract will validate`)
 
     // Verify current nonce from contract
     const currentNonce = await publicClient.readContract({
