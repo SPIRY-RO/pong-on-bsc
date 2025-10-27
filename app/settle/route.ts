@@ -241,52 +241,63 @@ export async function POST(req: NextRequest) {
     console.log(`[Settle:${settlementId}]   r: ${r}`)
     console.log(`[Settle:${settlementId}]   s: ${s}`)
 
-    // Send both transactions in parallel (x402-permit pattern)
+    // CRITICAL: Execute SEQUENTIALLY, not in parallel!
+    // transferFrom() needs permit() to be CONFIRMED first
     // Use actualOwner (recovered from signature) instead of claimed owner
-    const [permitHash, transferHash] = await Promise.all([
-      // Transaction 1: permit()
-      walletClient.writeContract({
-        address: getAddress(USD1_TOKEN) as `0x${string}`,
-        abi: usd1Abi,
-        functionName: 'permit',
-        args: [
-          actualOwner,  // ← Use recovered signer!
-          getAddress(spender) as `0x${string}`,
-          BigInt(value),
-          BigInt(deadline),
-          v,
-          r as `0x${string}`,
-          s as `0x${string}`,
-        ] as const,
-        chain: null,
-        nonce: facilitatorNonce,
-      }),
-      // Transaction 2: transferFrom()
-      walletClient.writeContract({
-        address: getAddress(USD1_TOKEN) as `0x${string}`,
-        abi: usd1Abi,
-        functionName: 'transferFrom',
-        args: [
-          actualOwner,  // ← Use recovered signer!
-          getAddress(TREASURY) as `0x${string}`,
-          BigInt(value),
-        ] as const,
-        chain: null,
-        nonce: facilitatorNonce + 1,
-      }),
-    ])
+
+    // Step 1: Execute permit()
+    console.log(`[Settle:${settlementId}] 1️⃣ Executing permit()...`)
+    const permitHash = await walletClient.writeContract({
+      address: getAddress(USD1_TOKEN) as `0x${string}`,
+      abi: usd1Abi,
+      functionName: 'permit',
+      args: [
+        actualOwner,  // ← Use recovered signer!
+        getAddress(spender) as `0x${string}`,
+        BigInt(value),
+        BigInt(deadline),
+        v,
+        r as `0x${string}`,
+        s as `0x${string}`,
+      ] as const,
+      chain: null,
+    })
 
     console.log(`[Settle:${settlementId}] Permit tx sent:`, permitHash)
+
+    // Step 2: Wait for permit() to be CONFIRMED
+    console.log(`[Settle:${settlementId}] ⏳ Waiting for permit() confirmation...`)
+    const permitReceipt = await publicClient.waitForTransactionReceipt({ hash: permitHash })
+    console.log(`[Settle:${settlementId}] ✅ Permit confirmed!`)
+
+    if (permitReceipt.status !== 'success') {
+      console.error(`[Settle:${settlementId}] ❌ Permit failed!`)
+      return NextResponse.json(
+        { error: 'Permit transaction failed' },
+        { status: 400 }
+      )
+    }
+
+    // Step 3: NOW execute transferFrom() (allowance is set!)
+    console.log(`[Settle:${settlementId}] 2️⃣ Executing transferFrom()...`)
+    const transferHash = await walletClient.writeContract({
+      address: getAddress(USD1_TOKEN) as `0x${string}`,
+      abi: usd1Abi,
+      functionName: 'transferFrom',
+      args: [
+        actualOwner,  // ← Use recovered signer!
+        getAddress(TREASURY) as `0x${string}`,
+        BigInt(value),
+      ] as const,
+      chain: null,
+    })
+
     console.log(`[Settle:${settlementId}] Transfer tx sent:`, transferHash)
 
-    // Wait for both transactions in parallel
-    const [permitReceipt, transferReceipt] = await Promise.all([
-      publicClient.waitForTransactionReceipt({ hash: permitHash }),
-      publicClient.waitForTransactionReceipt({ hash: transferHash }),
-    ])
-
-    console.log(`[Settle:${settlementId}] Permit confirmed!`)
-    console.log(`[Settle:${settlementId}] Transfer confirmed!`)
+    // Step 4: Wait for transferFrom() to be CONFIRMED
+    console.log(`[Settle:${settlementId}] ⏳ Waiting for transferFrom() confirmation...`)
+    const transferReceipt = await publicClient.waitForTransactionReceipt({ hash: transferHash })
+    console.log(`[Settle:${settlementId}] ✅ Transfer confirmed!`)
 
     if (transferReceipt.status !== 'success') {
       console.error(`[Settle:${settlementId}] ❌ Transfer failed!`)
