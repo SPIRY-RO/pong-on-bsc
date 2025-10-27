@@ -135,21 +135,21 @@ export default function AlphaPage() {
     const scene = new BABYLON.Scene(engine)
     scene.clearColor = new BABYLON.Color4(0.04, 0.05, 0.06, 1) // Dark background
 
-    // Camera setup - Arc Rotate for horizontal card view
+    // Camera setup - Arc Rotate for horizontal card view (perfect framing)
     const camera = new BABYLON.ArcRotateCamera(
       'camera',
       0, // Alpha - facing straight at cards
-      Math.PI / 2.8, // Beta - slight angle from above
-      10, // Radius - distance from target
-      new BABYLON.Vector3(0, 0.5, 0), // Target slightly above center
+      Math.PI / 3, // Beta - better angle for card view
+      11, // Radius - optimal distance for framing
+      new BABYLON.Vector3(0, 0, 0), // Target center of cards
       scene
     )
-    // Position camera in front of cards (on negative Z)
-    camera.setPosition(new BABYLON.Vector3(0, 3, -10))
-    camera.lowerRadiusLimit = 7
-    camera.upperRadiusLimit = 15
+    // Position camera for perfect framing
+    camera.setPosition(new BABYLON.Vector3(0, 2.5, -11))
+    camera.lowerRadiusLimit = 9
+    camera.upperRadiusLimit = 14
     camera.lowerBetaLimit = Math.PI / 4 // Prevent looking too far down
-    camera.upperBetaLimit = Math.PI / 2.2 // Prevent looking too far up
+    camera.upperBetaLimit = Math.PI / 2.5 // Prevent looking too far up
     camera.attachControl(canvasRef.current, true)
 
     // Disable arrow keys for camera control (we use them for card selection)
@@ -319,7 +319,7 @@ export default function AlphaPage() {
     headerTexture.update()
 
     const headerPlane = BABYLON.MeshBuilder.CreatePlane('headerPlane', { width: 6, height: 1.2 }, scene)
-    headerPlane.position.y = 3
+    headerPlane.position.y = 3.2 // Better positioning for perfect frame
     headerPlane.billboardMode = BABYLON.Mesh.BILLBOARDMODE_ALL
 
     const headerMaterial = new BABYLON.StandardMaterial('headerMat', scene)
@@ -331,7 +331,7 @@ export default function AlphaPage() {
 
     // ==== CREATE 3 INTERACTIVE TIER CARDS (HORIZONTAL LAYOUT) ====
 
-    const cardSpacing = 3.5
+    const cardSpacing = 3.2 // Tighter spacing for better framing
     const cards: BABYLON.Mesh[] = []
     const glowLayers: BABYLON.GlowLayer[] = []
     const cardContainers: BABYLON.TransformNode[] = []
@@ -341,15 +341,15 @@ export default function AlphaPage() {
     PAYMENT_TIERS.forEach((tier, index) => {
       // Create container for card animations
       const container = new BABYLON.TransformNode(`container${tier.usd1}`, scene)
-      container.position.x = (index - 1) * cardSpacing // -3.5, 0, 3.5
+      container.position.x = (index - 1) * cardSpacing // Better spacing
       container.position.y = 0
       container.position.z = 0
       cardContainers.push(container)
 
-      // Create card (box with glow)
+      // Create card (slightly larger for better visibility)
       const card = BABYLON.MeshBuilder.CreateBox(
         `tier${tier.usd1}`,
-        { width: 2.5, height: 3.5, depth: 0.3 },
+        { width: 2.6, height: 3.6, depth: 0.3 },
         scene
       )
 
@@ -385,7 +385,7 @@ export default function AlphaPage() {
       // Selection border (frame around card)
       const border = BABYLON.MeshBuilder.CreateBox(
         `border${tier.usd1}`,
-        { width: 2.6, height: 3.6, depth: 0.35 },
+        { width: 2.7, height: 3.7, depth: 0.35 },
         scene
       )
       border.parent = container
@@ -524,7 +524,7 @@ export default function AlphaPage() {
 
       const overlay = BABYLON.MeshBuilder.CreatePlane(
         `overlay${tier.usd1}`,
-        { width: 2.4, height: 2.9 },
+        { width: 2.5, height: 3.5 },
         scene
       )
       overlay.parent = card
