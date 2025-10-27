@@ -1,9 +1,9 @@
 'use client'
 
 import { useState, useRef, useEffect } from 'react'
+import { motion, AnimatePresence } from 'framer-motion'
 
-const CHAIN_ID = 56
-const EXPECTED_CHAIN_ID = '0x38' // 56 in hex
+const EXPECTED_CHAIN_ID = '0x38' // BSC Mainnet (56 in hex)
 
 // Payment tier configuration
 const PAYMENT_TIERS = [
@@ -172,9 +172,9 @@ export default function Home() {
 
     // Map tier amount to endpoint
     const tierEndpoints: Record<number, string> = {
-      1: '/pong',      // Tier 1: 1 USD1 → 4,000 PONG
-      5: '/PONG',      // Tier 2: 5 USD1 → 20,000 PONG (MOST POPULAR)
-      10: '/PONG2',    // Tier 3: 10 USD1 → 40,000 PONG
+      1: '/pong1',      // Tier 1: 1 USD1 → 4,000 PONG
+      5: '/pong5',      // Tier 2: 5 USD1 → 20,000 PONG (MOST POPULAR)
+      10: '/pong10',    // Tier 3: 10 USD1 → 40,000 PONG
     }
     const endpoint = tierEndpoints[tierAmount]
 
@@ -350,131 +350,299 @@ export default function Home() {
 
   return (
     <div style={styles.container}>
+      {/* Animated Background Elements */}
+      <div style={styles.bgGradient1} />
+      <div style={styles.bgGradient2} />
+      <div style={styles.bgGrid} />
+
+      {/* Floating Particles */}
+      {[...Array(8)].map((_, i) => (
+        <motion.div
+          key={i}
+          style={{
+            ...styles.particle,
+            left: `${Math.random() * 100}%`,
+            top: `${Math.random() * 100}%`,
+          }}
+          animate={{
+            y: [0, -100, 0],
+            x: [0, Math.random() * 50 - 25, 0],
+            opacity: [0, 0.6, 0],
+            scale: [0.8, 1.2, 0.8],
+          }}
+          transition={{
+            duration: 5 + Math.random() * 5,
+            repeat: Infinity,
+            delay: Math.random() * 5,
+          }}
+        />
+      ))}
+
       {/* Hero Section */}
-      <div style={styles.hero}>
-        <div style={styles.heroGlow} />
-        <div style={styles.heroMascotContainer}>
-          <img
-            src="/pong-mascot.png"
-            alt="PONG Mascot"
+      <motion.div
+        style={styles.hero}
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6 }}
+      >
+        {/* x402 Protocol Badge */}
+        <motion.div
+          style={styles.x402Badge}
+          initial={{ opacity: 0, scale: 0.9 }}
+          animate={{ opacity: 1, scale: 1 }}
+          transition={{ delay: 0.2, duration: 0.5 }}
+        >
+          <span style={styles.x402BadgeIcon}>⚡</span>
+          <span style={styles.x402BadgeText}>x402 Payments Enabled</span>
+          <span style={styles.x402BadgePulse} />
+        </motion.div>
+
+        {/* Mascot with Enhanced Glow */}
+        <motion.div
+          style={styles.heroMascotContainer}
+          initial={{ scale: 0.8, opacity: 0 }}
+          animate={{ scale: 1, opacity: 1 }}
+          transition={{ delay: 0.3, duration: 0.6, type: 'spring' }}
+        >
+          <div style={styles.mascotGlow} />
+          <motion.img
+            src="/pong_logo.png"
+            alt="PONG Logo"
             style={styles.heroMascot}
+            animate={{ y: [0, -15, 0] }}
+            transition={{ duration: 3, repeat: Infinity, ease: 'easeInOut' }}
           />
-        </div>
-        <h1 style={styles.heroTitle}>
-          <span style={styles.pongText}>PONG</span>
-        </h1>
-        <p style={styles.heroSubtitle}>Fair Launch Token Distribution</p>
-        <p style={styles.heroDescription}>
+        </motion.div>
+
+        {/* Title with Gradient Animation */}
+        <motion.h1
+          style={styles.heroTitle}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.4, duration: 0.6 }}
+        >
+          <span className="gradient-text-gold" style={styles.pongText}>
+            PONG
+          </span>
+        </motion.h1>
+
+        <motion.p
+          style={styles.heroSubtitle}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.5, duration: 0.6 }}
+        >
+          Fair Launch Token Distribution
+        </motion.p>
+
+        <motion.p
+          style={styles.heroDescription}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.6, duration: 0.6 }}
+        >
           Gasless payment via EIP-2612 Permit on BNB Chain. No gas fees for you, instant allocation.
-        </p>
+        </motion.p>
 
         {/* Trust Badges */}
-        <div style={styles.trustBadges}>
-          <div style={styles.trustBadge}>
-            <span style={styles.trustIcon}>✓</span>
-            <span>No Team Allocation</span>
+        <motion.div
+          style={styles.trustBadges}
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.7, duration: 0.6 }}
+        >
+          {[
+            { icon: '🚫', text: 'No Team Allocation' },
+            { icon: '💯', text: 'No Founder Tokens' },
+            { icon: '💧', text: '100% to Liquidity' },
+            { icon: '⚖️', text: 'Fair Launch' },
+          ].map((badge, i) => (
+            <motion.div
+              key={badge.text}
+              style={styles.trustBadge}
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ delay: 0.8 + i * 0.1, duration: 0.4 }}
+              whileHover={{ scale: 1.05, y: -2 }}
+            >
+              <span style={styles.trustBadgeIcon}>{badge.icon}</span>
+              <span>{badge.text}</span>
+            </motion.div>
+          ))}
+        </motion.div>
+
+        {/* BNB Chain Badge */}
+        <motion.div
+          style={styles.bnbBadge}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1, duration: 0.6 }}
+        >
+          <div style={styles.bnbBadgeInner}>
+            <span style={styles.bnbBadgeText}>Powered by</span>
+            <span style={styles.bnbBadgeLogo}>BNB CHAIN</span>
           </div>
-          <div style={styles.trustBadge}>
-            <span style={styles.trustIcon}>✓</span>
-            <span>No Founder Tokens</span>
-          </div>
-          <div style={styles.trustBadge}>
-            <span style={styles.trustIcon}>✓</span>
-            <span>100% to Liquidity</span>
-          </div>
-          <div style={styles.trustBadge}>
-            <span style={styles.trustIcon}>✓</span>
-            <span>Fair Launch</span>
-          </div>
-        </div>
-      </div>
+        </motion.div>
+      </motion.div>
 
       {/* Success Modal */}
-      {transactionStage === 'success' && (
-        <div style={styles.modal} onClick={resetTransaction}>
-          <div style={styles.successCard} onClick={(e) => e.stopPropagation()}>
-            <div style={styles.successMascotContainer}>
-              <img
-                src="/pong-mascot.png"
-                alt="PONG Mascot"
-                style={styles.successMascot}
-              />
-            </div>
-            <div style={styles.successIconContainer}>
-              <div style={styles.successIcon}>✓</div>
-            </div>
-            <h2 style={styles.successTitle}>Transaction Successful!</h2>
-            <p style={styles.successMessage}>
-              You've been allocated{' '}
-              <span style={styles.successPongAmount}>{allocatedPong.toLocaleString()} PONG</span>
-            </p>
-            <div style={styles.successDetails}>
-              <div style={styles.successDetailRow}>
-                <span style={styles.successDetailLabel}>Amount Paid:</span>
-                <span style={styles.successDetailValue}>{selectedTier} USD1</span>
+      <AnimatePresence>
+        {transactionStage === 'success' && (
+          <motion.div
+            style={styles.modal}
+            onClick={resetTransaction}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              style={styles.successCard}
+              onClick={(e) => e.stopPropagation()}
+              initial={{ scale: 0.8, opacity: 0, y: 50 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.8, opacity: 0, y: 50 }}
+              transition={{ type: 'spring', damping: 20 }}
+            >
+              <div style={styles.successMascotContainer}>
+                <motion.img
+                  src="/pong_logo.png"
+                  alt="PONG Logo"
+                  style={styles.successMascot}
+                  animate={{ y: [0, -10, 0] }}
+                  transition={{ duration: 0.6, repeat: Infinity }}
+                />
               </div>
-              <div style={styles.successDetailRow}>
-                <span style={styles.successDetailLabel}>Transaction:</span>
-                <a
-                  href={`https://bscscan.com/tx/${txHash}`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={styles.successTxLink}
-                >
-                  View on BSCScan ↗
-                </a>
+              <motion.div
+                style={styles.successIconContainer}
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: 'spring', damping: 15 }}
+              >
+                <div style={styles.successIcon}>✓</div>
+              </motion.div>
+              <h2 style={styles.successTitle}>Transaction Successful!</h2>
+              <p style={styles.successMessage}>
+                You've been allocated{' '}
+                <span className="gradient-text-gold" style={styles.successPongAmount}>
+                  {allocatedPong.toLocaleString()} PONG
+                </span>
+              </p>
+              <div style={styles.successDetails}>
+                <div style={styles.successDetailRow}>
+                  <span style={styles.successDetailLabel}>Amount Paid:</span>
+                  <span style={styles.successDetailValue}>{selectedTier} USD1</span>
+                </div>
+                <div style={styles.successDetailRow}>
+                  <span style={styles.successDetailLabel}>Transaction:</span>
+                  <a
+                    href={`https://bscscan.com/tx/${txHash}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={styles.successTxLink}
+                  >
+                    View on BSCScan ↗
+                  </a>
+                </div>
               </div>
-            </div>
-            <button style={styles.successButton} onClick={resetTransaction}>
-              Make Another Purchase
-            </button>
-          </div>
-        </div>
-      )}
+              <motion.button
+                style={styles.successButton}
+                onClick={resetTransaction}
+                whileHover={{ scale: 1.02 }}
+                whileTap={{ scale: 0.98 }}
+              >
+                Make Another Purchase
+              </motion.button>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Main Content */}
       <div style={styles.mainContent}>
         {!account ? (
           /* Wallet Connection Card */
-          <div style={styles.connectCard}>
+          <motion.div
+            style={styles.connectCard}
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.8, duration: 0.6 }}
+          >
+            <div style={styles.connectCardGlow} />
             <h2 style={styles.connectTitle}>Get Started</h2>
             <p style={styles.connectDescription}>
               Connect your wallet to participate in the PONG fair launch
             </p>
-            <button style={styles.connectButton} onClick={connectWallet}>
+            <motion.button
+              style={styles.connectButton}
+              onClick={connectWallet}
+              whileHover={{ scale: 1.02, boxShadow: '0 0 30px rgba(240, 185, 11, 0.4)' }}
+              whileTap={{ scale: 0.98 }}
+            >
               <span style={styles.connectButtonIcon}>🔌</span>
               Connect Wallet
-            </button>
+            </motion.button>
             <div style={styles.techBadges}>
               <span style={styles.techBadge}>BNB Chain</span>
               <span style={styles.techBadge}>EIP-2612</span>
               <span style={styles.techBadge}>Gasless</span>
-              <span style={styles.techBadge}>x402</span>
+              <span style={{ ...styles.techBadge, ...styles.techBadgeHighlight }}>x402</span>
             </div>
-          </div>
+          </motion.div>
         ) : transactionStage === 'idle' || transactionStage === 'error' ? (
           /* Pricing Tiers */
           <>
-            <div style={styles.accountBanner}>
+            <motion.div
+              style={styles.accountBanner}
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5 }}
+            >
               <span style={styles.accountLabel}>Connected:</span>
               <span style={styles.accountAddress}>
                 {account.slice(0, 6)}...{account.slice(-4)}
               </span>
-            </div>
+              <div style={styles.connectedDot} />
+            </motion.div>
 
-            <h2 style={styles.tiersTitle}>Choose Your Tier</h2>
+            <motion.h2
+              style={styles.tiersTitle}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.2, duration: 0.5 }}
+            >
+              Choose Your Tier
+            </motion.h2>
+
             <div style={styles.tiersContainer}>
-              {PAYMENT_TIERS.map((tier) => (
-                <div
+              {PAYMENT_TIERS.map((tier, index) => (
+                <motion.div
                   key={tier.amount}
                   style={{
                     ...styles.tierCard,
                     ...(tier.popular ? styles.tierCardPopular : {}),
                   }}
+                  initial={{ opacity: 0, y: 30 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: 0.3 + index * 0.1, duration: 0.5 }}
+                  whileHover={{
+                    y: -8,
+                    transition: { duration: 0.2 },
+                  }}
                 >
-                  {tier.popular && <div style={styles.popularBadge}>MOST POPULAR</div>}
+                  {tier.popular && (
+                    <motion.div
+                      style={styles.popularBadge}
+                      initial={{ opacity: 0, y: -10 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      transition={{ delay: 0.5 + index * 0.1 }}
+                    >
+                      🔥 MOST POPULAR
+                    </motion.div>
+                  )}
                   <div style={styles.tierHeader}>
-                    <div style={styles.tierAmount}>{tier.usd1}</div>
+                    <div className="gradient-text-gold" style={styles.tierAmount}>
+                      {tier.usd1}
+                    </div>
                     <div style={styles.tierCurrency}>USD1</div>
                   </div>
                   <div style={styles.tierDivider} />
@@ -483,7 +651,7 @@ export default function Home() {
                     <div style={styles.tierPongLabel}>PONG Tokens</div>
                   </div>
                   <div style={styles.tierRatio}>4,000 PONG per USD1</div>
-                  <button
+                  <motion.button
                     type="button"
                     style={{
                       ...styles.tierButton,
@@ -496,105 +664,139 @@ export default function Home() {
                       pay(tier.usd1)
                     }}
                     disabled={loading || paymentInProgressRef.current}
+                    whileHover={!loading ? { scale: 1.02 } : {}}
+                    whileTap={!loading ? { scale: 0.98 } : {}}
                   >
-                    {loading && selectedTier === tier.usd1 ? 'Processing...' : 'Select'}
-                  </button>
-                </div>
+                    {loading && selectedTier === tier.usd1 ? (
+                      <>
+                        <motion.span
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                        >
+                          ⚡
+                        </motion.span>
+                        Processing...
+                      </>
+                    ) : (
+                      'Select Tier'
+                    )}
+                  </motion.button>
+                </motion.div>
               ))}
             </div>
 
-            {transactionStage === 'error' && status.length > 0 && (
-              <div style={styles.errorCard}>
-                <div style={styles.errorHeader}>
-                  <span style={styles.errorIcon}>⚠️</span>
-                  <span style={styles.errorTitle}>Transaction Failed</span>
-                </div>
-                <div style={styles.errorMessage}>{status[status.length - 1]}</div>
-                <button style={styles.errorButton} onClick={resetTransaction}>
-                  Try Again
-                </button>
-              </div>
-            )}
+            <AnimatePresence>
+              {transactionStage === 'error' && status.length > 0 && (
+                <motion.div
+                  style={styles.errorCard}
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: 20 }}
+                >
+                  <div style={styles.errorHeader}>
+                    <span style={styles.errorIcon}>⚠️</span>
+                    <span style={styles.errorTitle}>Transaction Failed</span>
+                  </div>
+                  <div style={styles.errorMessage}>{status[status.length - 1]}</div>
+                  <motion.button
+                    style={styles.errorButton}
+                    onClick={resetTransaction}
+                    whileHover={{ scale: 1.02 }}
+                    whileTap={{ scale: 0.98 }}
+                  >
+                    Try Again
+                  </motion.button>
+                </motion.div>
+              )}
+            </AnimatePresence>
           </>
         ) : (
           /* Transaction Progress */
-          <div style={styles.progressCard}>
+          <motion.div
+            style={styles.progressCard}
+            initial={{ opacity: 0, scale: 0.95 }}
+            animate={{ opacity: 1, scale: 1 }}
+            transition={{ duration: 0.4 }}
+          >
             <h2 style={styles.progressTitle}>Processing Transaction</h2>
             <p style={styles.progressSubtitle}>
               Purchasing {selectedTier} USD1 → {PAYMENT_TIERS.find((t) => t.usd1 === selectedTier)?.pong.toLocaleString()} PONG
             </p>
 
             <div style={styles.progressSteps}>
-              <div style={styles.progressStep}>
-                <div
-                  style={{
-                    ...styles.progressStepCircle,
-                    ...(transactionStage === 'requesting' ? styles.progressStepCircleActive : {}),
-                    ...(transactionStage === 'signing' || transactionStage === 'settling'
-                      ? styles.progressStepCircleComplete
-                      : {}),
-                  }}
-                >
-                  {transactionStage === 'signing' || transactionStage === 'settling' ? '✓' : '1'}
-                </div>
-                <div style={styles.progressStepLabel}>Request Challenge</div>
-                {transactionStage === 'requesting' && (
-                  <div style={styles.progressStepSpinner} />
-                )}
-              </div>
+              {[
+                { stage: 'requesting', label: 'Request Challenge', emoji: '📡' },
+                { stage: 'signing', label: 'Sign Authorization', emoji: '✍️' },
+                { stage: 'settling', label: 'Settle On-Chain', emoji: '⚡' },
+              ].map((step, index) => {
+                const isActive = transactionStage === step.stage
+                const isComplete =
+                  (step.stage === 'requesting' && ['signing', 'settling'].includes(transactionStage)) ||
+                  (step.stage === 'signing' && transactionStage === 'settling')
 
-              <div style={styles.progressStepConnector} />
-
-              <div style={styles.progressStep}>
-                <div
-                  style={{
-                    ...styles.progressStepCircle,
-                    ...(transactionStage === 'signing' ? styles.progressStepCircleActive : {}),
-                    ...(transactionStage === 'settling' ? styles.progressStepCircleComplete : {}),
-                  }}
-                >
-                  {transactionStage === 'settling' ? '✓' : '2'}
-                </div>
-                <div style={styles.progressStepLabel}>Sign Authorization</div>
-                {transactionStage === 'signing' && (
-                  <div style={styles.progressStepSpinner} />
-                )}
-              </div>
-
-              <div style={styles.progressStepConnector} />
-
-              <div style={styles.progressStep}>
-                <div
-                  style={{
-                    ...styles.progressStepCircle,
-                    ...(transactionStage === 'settling' ? styles.progressStepCircleActive : {}),
-                  }}
-                >
-                  3
-                </div>
-                <div style={styles.progressStepLabel}>Settle On-Chain</div>
-                {transactionStage === 'settling' && (
-                  <div style={styles.progressStepSpinner} />
-                )}
-              </div>
+                return (
+                  <div key={step.stage}>
+                    {index > 0 && <div style={styles.progressStepConnector} />}
+                    <motion.div
+                      style={styles.progressStep}
+                      animate={isActive ? { scale: [1, 1.05, 1] } : {}}
+                      transition={{ duration: 1, repeat: Infinity }}
+                    >
+                      <div
+                        style={{
+                          ...styles.progressStepCircle,
+                          ...(isActive ? styles.progressStepCircleActive : {}),
+                          ...(isComplete ? styles.progressStepCircleComplete : {}),
+                        }}
+                      >
+                        {isComplete ? '✓' : step.emoji}
+                      </div>
+                      <div style={styles.progressStepLabel}>{step.label}</div>
+                      {isActive && (
+                        <motion.div
+                          style={styles.progressStepSpinner}
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: 'linear' }}
+                        />
+                      )}
+                    </motion.div>
+                  </div>
+                )
+              })}
             </div>
 
             {/* Console Output */}
             {status.length > 0 && (
-              <div style={styles.progressConsole}>
+              <motion.div
+                style={styles.progressConsole}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                transition={{ duration: 0.3 }}
+              >
                 {status.slice(-5).map((msg, i) => (
-                  <div key={i} style={styles.progressConsoleItem}>
+                  <motion.div
+                    key={i}
+                    style={styles.progressConsoleItem}
+                    initial={{ opacity: 0, x: -20 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05 }}
+                  >
                     {msg}
-                  </div>
+                  </motion.div>
                 ))}
-              </div>
+              </motion.div>
             )}
-          </div>
+          </motion.div>
         )}
       </div>
 
       {/* Footer */}
-      <footer style={styles.footer}>
+      <motion.footer
+        style={styles.footer}
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 1.2, duration: 0.6 }}
+      >
         <div style={styles.footerContent}>
           <div style={styles.footerInfo}>
             <span style={styles.footerLabel}>Protocol:</span>
@@ -609,7 +811,7 @@ export default function Home() {
             <span style={styles.footerValue}>4,000 PONG per USD1</span>
           </div>
         </div>
-      </footer>
+      </motion.footer>
     </div>
   )
 }
@@ -617,392 +819,534 @@ export default function Home() {
 const styles: Record<string, React.CSSProperties> = {
   container: {
     minHeight: '100vh',
-    background: '#0b0b0f',
-    color: '#e4e4e7',
-    fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif',
+    background: 'var(--bg-primary)',
+    color: 'var(--text-primary)',
     padding: '20px',
     position: 'relative',
     overflow: 'hidden',
   },
 
-  // Hero Section
-  hero: {
-    textAlign: 'center',
-    paddingTop: '60px',
-    paddingBottom: '40px',
-    position: 'relative',
-    maxWidth: '900px',
-    margin: '0 auto',
-  },
-  heroGlow: {
+  // Animated Background
+  bgGradient1: {
     position: 'absolute',
-    top: '0',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    width: '600px',
-    height: '600px',
-    background: 'radial-gradient(circle, rgba(59, 130, 246, 0.15) 0%, transparent 70%)',
+    top: '-20%',
+    left: '-10%',
+    width: '800px',
+    height: '800px',
+    background: 'radial-gradient(circle, rgba(240, 185, 11, 0.08) 0%, transparent 70%)',
+    pointerEvents: 'none',
+    zIndex: 0,
+    filter: 'blur(60px)',
+  },
+  bgGradient2: {
+    position: 'absolute',
+    bottom: '-30%',
+    right: '-10%',
+    width: '1000px',
+    height: '1000px',
+    background: 'radial-gradient(circle, rgba(14, 203, 129, 0.06) 0%, transparent 70%)',
+    pointerEvents: 'none',
+    zIndex: 0,
+    filter: 'blur(80px)',
+  },
+  bgGrid: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundImage: 'linear-gradient(rgba(43, 49, 57, 0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(43, 49, 57, 0.3) 1px, transparent 1px)',
+    backgroundSize: '50px 50px',
+    opacity: 0.3,
     pointerEvents: 'none',
     zIndex: 0,
   },
+  particle: {
+    position: 'absolute',
+    width: '4px',
+    height: '4px',
+    borderRadius: '50%',
+    background: 'var(--color-binance-gold)',
+    boxShadow: '0 0 10px rgba(240, 185, 11, 0.6)',
+    pointerEvents: 'none',
+    zIndex: 1,
+  },
+
+  // Hero Section
+  hero: {
+    textAlign: 'center',
+    paddingTop: '40px',
+    paddingBottom: '60px',
+    position: 'relative',
+    maxWidth: '1000px',
+    margin: '0 auto',
+    zIndex: 2,
+  },
+
+  // x402 Protocol Badge
+  x402Badge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px',
+    background: 'rgba(59, 130, 246, 0.1)',
+    border: '1px solid rgba(59, 130, 246, 0.3)',
+    borderRadius: '24px',
+    padding: '8px 20px',
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#3B82F6',
+    marginBottom: '24px',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  x402BadgeIcon: {
+    fontSize: '16px',
+  },
+  x402BadgeText: {
+    letterSpacing: '0.3px',
+  },
+  x402BadgePulse: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    borderRadius: '24px',
+    border: '1px solid rgba(59, 130, 246, 0.5)',
+    animation: 'pulse 2s ease-in-out infinite',
+  },
+
+  // Mascot
   heroMascotContainer: {
     position: 'relative',
-    zIndex: 1,
-    marginBottom: '20px',
+    marginBottom: '24px',
     display: 'flex',
     justifyContent: 'center',
   },
-  heroMascot: {
-    width: '120px',
-    height: '120px',
-    objectFit: 'contain',
-    filter: 'drop-shadow(0 8px 24px rgba(255, 183, 3, 0.3))',
-    animation: 'float 3s ease-in-out infinite',
+  mascotGlow: {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: '200px',
+    height: '200px',
+    background: 'radial-gradient(circle, rgba(240, 185, 11, 0.3) 0%, transparent 70%)',
+    filter: 'blur(40px)',
+    pointerEvents: 'none',
+    animation: 'pulse 3s ease-in-out infinite',
   },
-  heroTitle: {
+  heroMascot: {
+    width: '140px',
+    height: '140px',
+    objectFit: 'contain',
+    filter: 'drop-shadow(0 10px 30px rgba(240, 185, 11, 0.4))',
     position: 'relative',
     zIndex: 1,
-    fontSize: '72px',
-    fontWeight: 800,
+  },
+
+  // Title
+  heroTitle: {
+    fontSize: '80px',
+    fontWeight: 900,
     margin: '0 0 16px 0',
-    letterSpacing: '-0.03em',
+    letterSpacing: '-0.04em',
+    lineHeight: '1',
   },
   pongText: {
-    background: 'linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%)',
-    WebkitBackgroundClip: 'text',
-    WebkitTextFillColor: 'transparent',
-    backgroundClip: 'text',
+    fontSize: 'inherit',
+    fontWeight: 'inherit',
+    textShadow: '0 0 40px rgba(240, 185, 11, 0.3)',
   },
   heroSubtitle: {
-    position: 'relative',
-    zIndex: 1,
-    fontSize: '24px',
+    fontSize: '26px',
     fontWeight: 600,
-    color: '#a1a1aa',
+    color: 'var(--text-secondary)',
     margin: '0 0 12px 0',
   },
   heroDescription: {
-    position: 'relative',
-    zIndex: 1,
     fontSize: '16px',
-    color: '#71717a',
-    margin: '0 0 32px 0',
-    maxWidth: '600px',
+    color: 'var(--text-tertiary)',
+    margin: '0 0 40px 0',
+    maxWidth: '640px',
     marginLeft: 'auto',
     marginRight: 'auto',
+    lineHeight: '1.6',
   },
 
   // Trust Badges
   trustBadges: {
-    position: 'relative',
-    zIndex: 1,
     display: 'flex',
     flexWrap: 'wrap',
     gap: '12px',
     justifyContent: 'center',
-    maxWidth: '700px',
-    margin: '0 auto',
+    maxWidth: '800px',
+    margin: '0 auto 32px auto',
   },
   trustBadge: {
-    background: 'rgba(34, 197, 94, 0.1)',
-    border: '1px solid rgba(34, 197, 94, 0.3)',
-    borderRadius: '8px',
-    padding: '10px 18px',
+    background: 'rgba(14, 203, 129, 0.08)',
+    border: '1px solid rgba(14, 203, 129, 0.25)',
+    borderRadius: '10px',
+    padding: '12px 20px',
     fontSize: '14px',
-    fontWeight: 500,
-    color: '#22c55e',
+    fontWeight: 600,
+    color: 'var(--color-success)',
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
+    cursor: 'default',
+    transition: 'all 0.2s ease',
   },
-  trustIcon: {
-    fontSize: '16px',
+  trustBadgeIcon: {
+    fontSize: '18px',
+  },
+
+  // BNB Chain Badge
+  bnbBadge: {
+    display: 'inline-block',
+    marginTop: '16px',
+  },
+  bnbBadgeInner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    background: 'rgba(240, 185, 11, 0.05)',
+    border: '1px solid rgba(240, 185, 11, 0.2)',
+    borderRadius: '8px',
+    padding: '8px 16px',
+  },
+  bnbBadgeText: {
+    fontSize: '12px',
+    color: 'var(--text-tertiary)',
+  },
+  bnbBadgeLogo: {
+    fontSize: '14px',
     fontWeight: 700,
+    color: 'var(--color-binance-gold)',
+    letterSpacing: '1px',
   },
 
   // Main Content
   mainContent: {
-    maxWidth: '1100px',
+    maxWidth: '1200px',
     margin: '0 auto',
     position: 'relative',
-    zIndex: 1,
+    zIndex: 2,
   },
 
   // Connect Card
   connectCard: {
-    background: '#11131a',
-    border: '1px solid #1f2230',
-    borderRadius: '20px',
-    padding: '48px',
-    maxWidth: '500px',
+    background: 'var(--bg-secondary)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '24px',
+    padding: '56px',
+    maxWidth: '520px',
     margin: '0 auto',
     textAlign: 'center',
+    position: 'relative',
+    overflow: 'hidden',
+  },
+  connectCardGlow: {
+    position: 'absolute',
+    top: '-50%',
+    left: '-50%',
+    width: '200%',
+    height: '200%',
+    background: 'radial-gradient(circle, rgba(240, 185, 11, 0.05) 0%, transparent 50%)',
+    pointerEvents: 'none',
   },
   connectTitle: {
-    fontSize: '32px',
+    fontSize: '36px',
     fontWeight: 700,
     margin: '0 0 12px 0',
+    background: 'linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%)',
+    WebkitBackgroundClip: 'text',
+    WebkitTextFillColor: 'transparent',
+    backgroundClip: 'text',
   },
   connectDescription: {
     fontSize: '16px',
-    color: '#a1a1aa',
-    margin: '0 0 32px 0',
+    color: 'var(--text-secondary)',
+    margin: '0 0 36px 0',
+    lineHeight: '1.6',
   },
   connectButton: {
     width: '100%',
-    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-    color: '#fff',
+    background: 'linear-gradient(135deg, var(--color-binance-gold) 0%, var(--color-binance-gold-dark) 100%)',
+    color: '#000',
     border: 'none',
     borderRadius: '12px',
-    padding: '18px 24px',
+    padding: '20px 32px',
     fontSize: '18px',
-    fontWeight: 600,
+    fontWeight: 700,
     cursor: 'pointer',
-    transition: 'all 0.2s',
+    transition: 'all 0.3s ease',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '12px',
+    boxShadow: '0 4px 20px rgba(240, 185, 11, 0.3)',
   },
   connectButtonIcon: {
     fontSize: '24px',
   },
   techBadges: {
     display: 'flex',
-    gap: '8px',
+    gap: '10px',
     flexWrap: 'wrap',
-    marginTop: '24px',
+    marginTop: '28px',
     justifyContent: 'center',
   },
   techBadge: {
-    background: '#18181b',
-    border: '1px solid #27272a',
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border-color)',
     borderRadius: '6px',
-    padding: '6px 12px',
+    padding: '8px 14px',
     fontSize: '12px',
-    color: '#a1a1aa',
-    fontFamily: 'Monaco, Courier, monospace',
+    color: 'var(--text-tertiary)',
+    fontFamily: 'Monaco, "Courier New", monospace',
+    fontWeight: 600,
+  },
+  techBadgeHighlight: {
+    background: 'rgba(59, 130, 246, 0.1)',
+    border: '1px solid rgba(59, 130, 246, 0.3)',
+    color: '#3B82F6',
   },
 
   // Account Banner
   accountBanner: {
-    background: 'rgba(59, 130, 246, 0.1)',
-    border: '1px solid rgba(59, 130, 246, 0.3)',
+    background: 'rgba(240, 185, 11, 0.08)',
+    border: '1px solid rgba(240, 185, 11, 0.25)',
     borderRadius: '12px',
-    padding: '16px 24px',
-    marginBottom: '32px',
+    padding: '16px 28px',
+    marginBottom: '40px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '12px',
     flexWrap: 'wrap',
+    position: 'relative',
   },
   accountLabel: {
     fontSize: '14px',
-    color: '#a1a1aa',
+    color: 'var(--text-secondary)',
     fontWeight: 500,
   },
   accountAddress: {
-    fontSize: '14px',
-    color: '#3b82f6',
-    fontFamily: 'Monaco, Courier, monospace',
-    fontWeight: 600,
+    fontSize: '15px',
+    color: 'var(--color-binance-gold)',
+    fontFamily: 'Monaco, "Courier New", monospace',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+  },
+  connectedDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    background: 'var(--color-success)',
+    boxShadow: '0 0 10px var(--color-success)',
+    animation: 'pulse 2s ease-in-out infinite',
   },
 
   // Tiers
   tiersTitle: {
-    fontSize: '32px',
+    fontSize: '36px',
     fontWeight: 700,
     textAlign: 'center',
-    margin: '0 0 32px 0',
-  },
-  tiersContainer: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))',
-    gap: '24px',
-    marginBottom: '32px',
-  },
-  tierCard: {
-    background: '#11131a',
-    border: '1px solid #1f2230',
-    borderRadius: '16px',
-    padding: '32px 24px',
-    textAlign: 'center',
-    position: 'relative',
-    transition: 'all 0.3s ease',
-  },
-  tierCardPopular: {
-    border: '2px solid #3b82f6',
-    boxShadow: '0 0 40px rgba(59, 130, 246, 0.2)',
-  },
-  popularBadge: {
-    position: 'absolute',
-    top: '-12px',
-    left: '50%',
-    transform: 'translateX(-50%)',
-    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-    color: '#fff',
-    padding: '6px 16px',
-    borderRadius: '20px',
-    fontSize: '11px',
-    fontWeight: 700,
-    letterSpacing: '0.5px',
-  },
-  tierHeader: {
-    marginBottom: '20px',
-  },
-  tierAmount: {
-    fontSize: '56px',
-    fontWeight: 800,
-    lineHeight: '1',
-    background: 'linear-gradient(135deg, #e4e4e7 0%, #a1a1aa 100%)',
+    margin: '0 0 36px 0',
+    background: 'linear-gradient(135deg, var(--text-primary) 0%, var(--text-secondary) 100%)',
     WebkitBackgroundClip: 'text',
     WebkitTextFillColor: 'transparent',
     backgroundClip: 'text',
   },
+  tiersContainer: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '28px',
+    marginBottom: '40px',
+  },
+  tierCard: {
+    background: 'var(--bg-secondary)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '20px',
+    padding: '36px 28px',
+    textAlign: 'center',
+    position: 'relative',
+    transition: 'all 0.3s ease',
+    cursor: 'pointer',
+  },
+  tierCardPopular: {
+    border: '2px solid var(--color-binance-gold)',
+    boxShadow: '0 0 40px rgba(240, 185, 11, 0.15)',
+    background: 'linear-gradient(135deg, rgba(240, 185, 11, 0.03) 0%, var(--bg-secondary) 100%)',
+  },
+  popularBadge: {
+    position: 'absolute',
+    top: '-14px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    background: 'linear-gradient(135deg, var(--color-binance-gold) 0%, var(--color-binance-gold-dark) 100%)',
+    color: '#000',
+    padding: '8px 20px',
+    borderRadius: '24px',
+    fontSize: '12px',
+    fontWeight: 700,
+    letterSpacing: '0.5px',
+    boxShadow: '0 4px 16px rgba(240, 185, 11, 0.4)',
+  },
+  tierHeader: {
+    marginBottom: '24px',
+  },
+  tierAmount: {
+    fontSize: '64px',
+    fontWeight: 900,
+    lineHeight: '1',
+    marginBottom: '8px',
+  },
   tierCurrency: {
     fontSize: '18px',
-    color: '#71717a',
+    color: 'var(--text-tertiary)',
     fontWeight: 600,
-    marginTop: '4px',
   },
   tierDivider: {
     height: '1px',
-    background: 'linear-gradient(90deg, transparent 0%, #1f2230 50%, transparent 100%)',
-    margin: '20px 0',
+    background: 'linear-gradient(90deg, transparent 0%, var(--border-color) 50%, transparent 100%)',
+    margin: '24px 0',
   },
   tierReward: {
-    marginBottom: '12px',
+    marginBottom: '16px',
   },
   tierPongAmount: {
-    fontSize: '32px',
+    fontSize: '36px',
     fontWeight: 700,
-    color: '#3b82f6',
+    color: 'var(--color-binance-gold)',
+    marginBottom: '8px',
   },
   tierPongLabel: {
     fontSize: '14px',
-    color: '#71717a',
-    marginTop: '4px',
+    color: 'var(--text-tertiary)',
   },
   tierRatio: {
     fontSize: '13px',
-    color: '#52525b',
-    marginBottom: '24px',
-    fontFamily: 'Monaco, Courier, monospace',
+    color: 'var(--text-disabled)',
+    marginBottom: '28px',
+    fontFamily: 'Monaco, "Courier New", monospace',
   },
   tierButton: {
     width: '100%',
-    background: '#18181b',
-    border: '1px solid #27272a',
-    color: '#e4e4e7',
-    borderRadius: '10px',
-    padding: '14px 24px',
+    background: 'var(--bg-tertiary)',
+    border: '1px solid var(--border-hover)',
+    color: 'var(--text-primary)',
+    borderRadius: '12px',
+    padding: '16px 28px',
     fontSize: '16px',
-    fontWeight: 600,
+    fontWeight: 700,
     cursor: 'pointer',
-    transition: 'all 0.2s',
+    transition: 'all 0.3s ease',
   },
   tierButtonPopular: {
-    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
+    background: 'linear-gradient(135deg, var(--color-binance-gold) 0%, var(--color-binance-gold-dark) 100%)',
     border: 'none',
-    color: '#fff',
+    color: '#000',
+    boxShadow: '0 4px 20px rgba(240, 185, 11, 0.3)',
   },
 
   // Progress Card
   progressCard: {
-    background: '#11131a',
-    border: '1px solid #1f2230',
-    borderRadius: '20px',
-    padding: '48px',
-    maxWidth: '700px',
+    background: 'var(--bg-secondary)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '24px',
+    padding: '56px',
+    maxWidth: '800px',
     margin: '0 auto',
   },
   progressTitle: {
-    fontSize: '32px',
+    fontSize: '36px',
     fontWeight: 700,
     textAlign: 'center',
-    margin: '0 0 8px 0',
+    margin: '0 0 12px 0',
   },
   progressSubtitle: {
     fontSize: '16px',
-    color: '#a1a1aa',
+    color: 'var(--text-secondary)',
     textAlign: 'center',
-    margin: '0 0 48px 0',
+    margin: '0 0 56px 0',
   },
   progressSteps: {
     display: 'flex',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: '32px',
+    marginBottom: '40px',
   },
   progressStep: {
     flex: '0 0 auto',
     display: 'flex',
     flexDirection: 'column',
     alignItems: 'center',
-    gap: '12px',
+    gap: '16px',
     position: 'relative',
   },
   progressStepCircle: {
-    width: '56px',
-    height: '56px',
+    width: '64px',
+    height: '64px',
     borderRadius: '50%',
-    background: '#18181b',
-    border: '2px solid #27272a',
+    background: 'var(--bg-elevated)',
+    border: '2px solid var(--border-color)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    fontSize: '20px',
+    fontSize: '24px',
     fontWeight: 700,
-    color: '#52525b',
+    color: 'var(--text-disabled)',
+    transition: 'all 0.3s ease',
   },
   progressStepCircleActive: {
-    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-    border: '2px solid #3b82f6',
-    color: '#fff',
-    boxShadow: '0 0 20px rgba(59, 130, 246, 0.4)',
+    background: 'linear-gradient(135deg, var(--color-binance-gold) 0%, var(--color-binance-gold-dark) 100%)',
+    border: '2px solid var(--color-binance-gold)',
+    color: '#000',
+    boxShadow: '0 0 30px rgba(240, 185, 11, 0.4)',
   },
   progressStepCircleComplete: {
-    background: '#22c55e',
-    border: '2px solid #22c55e',
+    background: 'var(--color-success)',
+    border: '2px solid var(--color-success)',
     color: '#fff',
+    boxShadow: '0 0 20px rgba(14, 203, 129, 0.3)',
   },
   progressStepLabel: {
-    fontSize: '13px',
-    color: '#a1a1aa',
-    fontWeight: 500,
+    fontSize: '14px',
+    color: 'var(--text-secondary)',
+    fontWeight: 600,
     textAlign: 'center',
-    maxWidth: '100px',
+    maxWidth: '120px',
   },
   progressStepSpinner: {
-    width: '20px',
-    height: '20px',
-    border: '2px solid #27272a',
-    borderTop: '2px solid #3b82f6',
+    width: '24px',
+    height: '24px',
+    border: '3px solid var(--border-color)',
+    borderTop: '3px solid var(--color-binance-gold)',
     borderRadius: '50%',
-    animation: 'spin 1s linear infinite',
   },
   progressStepConnector: {
     flex: '1 1 auto',
     height: '2px',
-    background: '#27272a',
-    marginTop: '28px',
-    marginLeft: '8px',
-    marginRight: '8px',
+    background: 'var(--border-color)',
+    marginTop: '32px',
+    marginLeft: '12px',
+    marginRight: '12px',
   },
   progressConsole: {
-    background: '#09090b',
-    border: '1px solid #18181b',
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border-color)',
     borderRadius: '12px',
-    padding: '16px',
+    padding: '20px',
     fontSize: '13px',
-    fontFamily: 'Monaco, Courier, monospace',
-    color: '#a1a1aa',
-    maxHeight: '200px',
+    fontFamily: 'Monaco, "Courier New", monospace',
+    color: 'var(--text-secondary)',
+    maxHeight: '220px',
     overflowY: 'auto',
   },
   progressConsoleItem: {
-    marginBottom: '8px',
+    marginBottom: '10px',
+    lineHeight: '1.6',
   },
 
   // Success Modal
@@ -1012,8 +1356,8 @@ const styles: Record<string, React.CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'rgba(0, 0, 0, 0.8)',
-    backdropFilter: 'blur(8px)',
+    background: 'rgba(0, 0, 0, 0.85)',
+    backdropFilter: 'blur(12px)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -1021,14 +1365,14 @@ const styles: Record<string, React.CSSProperties> = {
     padding: '20px',
   },
   successCard: {
-    background: '#11131a',
-    border: '2px solid #22c55e',
-    borderRadius: '24px',
-    padding: '48px',
-    maxWidth: '500px',
+    background: 'var(--bg-secondary)',
+    border: '2px solid var(--color-success)',
+    borderRadius: '28px',
+    padding: '56px',
+    maxWidth: '540px',
     width: '100%',
     textAlign: 'center',
-    boxShadow: '0 0 60px rgba(34, 197, 94, 0.3)',
+    boxShadow: '0 0 80px rgba(14, 203, 129, 0.25)',
     position: 'relative',
   },
   successMascotContainer: {
@@ -1039,156 +1383,160 @@ const styles: Record<string, React.CSSProperties> = {
     zIndex: 10,
   },
   successMascot: {
-    width: '100px',
-    height: '100px',
+    width: '110px',
+    height: '110px',
     objectFit: 'contain',
-    filter: 'drop-shadow(0 8px 32px rgba(255, 183, 3, 0.5))',
-    animation: 'bounce 0.6s ease-in-out infinite',
+    filter: 'drop-shadow(0 10px 40px rgba(240, 185, 11, 0.6))',
   },
   successIconContainer: {
-    marginBottom: '24px',
+    marginBottom: '28px',
   },
   successIcon: {
     display: 'inline-flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '80px',
-    height: '80px',
+    width: '88px',
+    height: '88px',
     borderRadius: '50%',
-    background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+    background: 'linear-gradient(135deg, var(--color-success) 0%, var(--color-success-dark) 100%)',
     color: '#fff',
-    fontSize: '48px',
+    fontSize: '52px',
     fontWeight: 700,
-    boxShadow: '0 8px 32px rgba(34, 197, 94, 0.4)',
+    boxShadow: '0 10px 40px rgba(14, 203, 129, 0.4)',
   },
   successTitle: {
-    fontSize: '32px',
+    fontSize: '36px',
     fontWeight: 700,
-    margin: '0 0 16px 0',
-    color: '#22c55e',
+    margin: '0 0 20px 0',
+    color: 'var(--color-success)',
   },
   successMessage: {
     fontSize: '18px',
-    color: '#a1a1aa',
-    margin: '0 0 32px 0',
+    color: 'var(--text-secondary)',
+    margin: '0 0 36px 0',
+    lineHeight: '1.6',
   },
   successPongAmount: {
-    color: '#3b82f6',
-    fontWeight: 700,
-    fontSize: '22px',
+    fontSize: '24px',
+    fontWeight: 800,
   },
   successDetails: {
-    background: '#09090b',
-    border: '1px solid #18181b',
-    borderRadius: '12px',
-    padding: '20px',
-    marginBottom: '24px',
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '14px',
+    padding: '24px',
+    marginBottom: '28px',
   },
   successDetailRow: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '8px 0',
+    padding: '10px 0',
   },
   successDetailLabel: {
     fontSize: '14px',
-    color: '#71717a',
+    color: 'var(--text-tertiary)',
+    fontWeight: 500,
   },
   successDetailValue: {
-    fontSize: '14px',
-    color: '#e4e4e7',
-    fontWeight: 600,
-    fontFamily: 'Monaco, Courier, monospace',
+    fontSize: '15px',
+    color: 'var(--text-primary)',
+    fontWeight: 700,
+    fontFamily: 'Monaco, "Courier New", monospace',
   },
   successTxLink: {
     fontSize: '14px',
-    color: '#3b82f6',
+    color: 'var(--color-info)',
     textDecoration: 'none',
-    fontWeight: 600,
+    fontWeight: 700,
+    transition: 'opacity 0.2s ease',
   },
   successButton: {
     width: '100%',
-    background: 'linear-gradient(135deg, #3b82f6 0%, #2563eb 100%)',
-    color: '#fff',
+    background: 'linear-gradient(135deg, var(--color-binance-gold) 0%, var(--color-binance-gold-dark) 100%)',
+    color: '#000',
     border: 'none',
     borderRadius: '12px',
-    padding: '16px 24px',
+    padding: '18px 32px',
     fontSize: '16px',
-    fontWeight: 600,
+    fontWeight: 700,
     cursor: 'pointer',
+    transition: 'all 0.3s ease',
+    boxShadow: '0 4px 20px rgba(240, 185, 11, 0.3)',
   },
 
   // Error Card
   errorCard: {
-    background: 'rgba(239, 68, 68, 0.1)',
-    border: '1px solid rgba(239, 68, 68, 0.3)',
-    borderRadius: '12px',
-    padding: '24px',
-    marginTop: '24px',
+    background: 'rgba(246, 70, 93, 0.08)',
+    border: '1px solid rgba(246, 70, 93, 0.3)',
+    borderRadius: '14px',
+    padding: '28px',
+    marginTop: '28px',
   },
   errorHeader: {
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
-    marginBottom: '12px',
+    marginBottom: '16px',
   },
   errorIcon: {
-    fontSize: '24px',
+    fontSize: '28px',
   },
   errorTitle: {
-    fontSize: '18px',
-    fontWeight: 600,
-    color: '#ef4444',
+    fontSize: '20px',
+    fontWeight: 700,
+    color: 'var(--color-error)',
   },
   errorMessage: {
     fontSize: '14px',
-    color: '#fca5a5',
-    fontFamily: 'Monaco, Courier, monospace',
-    marginBottom: '16px',
+    color: '#FCA5A5',
+    fontFamily: 'Monaco, "Courier New", monospace',
+    marginBottom: '20px',
+    lineHeight: '1.6',
   },
   errorButton: {
-    background: '#ef4444',
+    background: 'var(--color-error)',
     color: '#fff',
     border: 'none',
-    borderRadius: '8px',
-    padding: '10px 20px',
-    fontSize: '14px',
-    fontWeight: 600,
+    borderRadius: '10px',
+    padding: '12px 24px',
+    fontSize: '15px',
+    fontWeight: 700,
     cursor: 'pointer',
+    transition: 'all 0.2s ease',
   },
 
   // Footer
   footer: {
-    marginTop: '60px',
-    paddingTop: '32px',
-    borderTop: '1px solid #1f2230',
+    marginTop: '80px',
+    paddingTop: '40px',
+    borderTop: '1px solid var(--border-color)',
     textAlign: 'center',
+    position: 'relative',
+    zIndex: 2,
   },
   footerContent: {
     display: 'flex',
-    gap: '32px',
+    gap: '40px',
     justifyContent: 'center',
     flexWrap: 'wrap',
-    marginBottom: '20px',
+    marginBottom: '24px',
   },
   footerInfo: {
     display: 'flex',
-    gap: '8px',
+    gap: '10px',
     alignItems: 'center',
   },
   footerLabel: {
     fontSize: '13px',
-    color: '#52525b',
+    color: 'var(--text-disabled)',
+    fontWeight: 500,
   },
   footerValue: {
     fontSize: '13px',
-    color: '#a1a1aa',
-    fontFamily: 'Monaco, Courier, monospace',
-  },
-  footerLink: {
-    color: '#52525b',
-    textDecoration: 'none',
-    fontSize: '14px',
+    color: 'var(--text-tertiary)',
+    fontFamily: 'Monaco, "Courier New", monospace',
+    fontWeight: 600,
   },
 }
 

@@ -38,13 +38,13 @@ function splitSignature(signature: string): { v: number; r: string; s: string } 
 
 // Handler for X-PAYMENT settlement
 async function handlePaymentSettlement(requestId: string, xPaymentHeader: string) {
-  console.log(`[/PONG2:${requestId}] ===== PROCESSING X-PAYMENT =====`)
+  console.log(`[/pong10:${requestId}] ===== PROCESSING X-PAYMENT =====`)
 
   try {
     // Decode payment payload
     const payment = decodeXPayment(xPaymentHeader)
-    console.log(`[/PONG2:${requestId}] Payment network:`, payment.network)
-    console.log(`[/PONG2:${requestId}] Payment scheme:`, payment.scheme)
+    console.log(`[/pong10:${requestId}] Payment network:`, payment.network)
+    console.log(`[/pong10:${requestId}] Payment scheme:`, payment.scheme)
 
     // Validate x402 version
     if (payment.x402Version !== 1) {
@@ -81,7 +81,7 @@ async function handlePaymentSettlement(requestId: string, xPaymentHeader: string
     const { signature, authorization } = payment.payload
     const { owner, spender, value, deadline, nonce } = authorization
 
-    console.log(`[/PONG2:${requestId}] EIP-2612 Permit:`, {
+    console.log(`[/pong10:${requestId}] EIP-2612 Permit:`, {
       owner,
       spender,
       value,
@@ -121,7 +121,7 @@ async function handlePaymentSettlement(requestId: string, xPaymentHeader: string
     // Split signature into v, r, s
     const { v, r, s } = splitSignature(signature)
 
-    console.log(`[/PONG2:${requestId}] ===== EXECUTING PERMIT() =====`)
+    console.log(`[/pong10:${requestId}] ===== EXECUTING PERMIT() =====`)
 
     // Step 1: Execute permit()
     const permitHash = await walletClient.writeContract({
@@ -140,11 +140,11 @@ async function handlePaymentSettlement(requestId: string, xPaymentHeader: string
       chain: null,
     })
 
-    console.log(`[/PONG2:${requestId}] Permit tx sent:`, permitHash)
+    console.log(`[/pong10:${requestId}] Permit tx sent:`, permitHash)
     await publicClient.waitForTransactionReceipt({ hash: permitHash })
-    console.log(`[/PONG2:${requestId}] Permit confirmed!`)
+    console.log(`[/pong10:${requestId}] Permit confirmed!`)
 
-    console.log(`[/PONG2:${requestId}] ===== EXECUTING TRANSFERFROM() =====`)
+    console.log(`[/pong10:${requestId}] ===== EXECUTING TRANSFERFROM() =====`)
 
     // Step 2: Execute transferFrom()
     const transferHash = await walletClient.writeContract({
@@ -159,12 +159,12 @@ async function handlePaymentSettlement(requestId: string, xPaymentHeader: string
       chain: null,
     })
 
-    console.log(`[/PONG2:${requestId}] Transfer tx sent:`, transferHash)
+    console.log(`[/pong10:${requestId}] Transfer tx sent:`, transferHash)
     await publicClient.waitForTransactionReceipt({ hash: transferHash })
-    console.log(`[/PONG2:${requestId}] Transfer confirmed!`)
+    console.log(`[/pong10:${requestId}] Transfer confirmed!`)
 
-    console.log(`[/PONG2:${requestId}] ===== SETTLEMENT COMPLETE =====`)
-    console.log(`[/PONG2:${requestId}] PONG allocated: ${PONG_ALLOCATION}`)
+    console.log(`[/pong10:${requestId}] ===== SETTLEMENT COMPLETE =====`)
+    console.log(`[/pong10:${requestId}] PONG allocated: ${PONG_ALLOCATION}`)
 
     // Encode X-PAYMENT-RESPONSE header
     const paymentResponse = {
@@ -194,7 +194,7 @@ async function handlePaymentSettlement(requestId: string, xPaymentHeader: string
       }
     )
   } catch (error: any) {
-    console.error(`[/PONG2:${requestId}] Settlement error:`, error.message)
+    console.error(`[/pong10:${requestId}] Settlement error:`, error.message)
     return NextResponse.json(
       { error: 'Settlement failed', details: error.shortMessage || error.message },
       { status: 400 }
@@ -202,39 +202,40 @@ async function handlePaymentSettlement(requestId: string, xPaymentHeader: string
   }
 }
 
-// GET /PONG2 → 402 descriptor
+// GET /pong10 → 402 PaymentRequirements (x402 protocol) - TIER 3
 export async function GET() {
-  const descriptor = {
+  const paymentRequirements = {
     x402Version: 1,
-    accepts: [
-      {
-        scheme: 'exact',
-        network: 'bsc',
-        maxAmountRequired: PRICE_MINOR,
-        asset: USD1_TOKEN,
-        payTo: TREASURY,
-      },
-    ],
-    product: 'PONG',
-    note: `Pay ${TIER_AMOUNT} USD1 (EIP-2612 Permit) to receive ${PONG_ALLOCATION.toLocaleString()} PONG`,
+    scheme: 'exact',
+    network: 'bsc',
+    asset: USD1_TOKEN,
+    payTo: TREASURY,
+    amount: PRICE_MINOR,
+    resource: '/PONG10',
+    description: `${PONG_ALLOCATION.toLocaleString()} PONG tokens - Tier ${TIER_AMOUNT}`,
+    extra: {
+      name: 'World Liberty Financial USD',
+      version: '1',
+      chainId: 56,
+    }
   }
 
-  return NextResponse.json(descriptor, { status: 402 })
+  return NextResponse.json(paymentRequirements, { status: 402 })
 }
 
-// POST /PONG2 → 402 EIP-2612 Permit challenge
+// POST /pong10 → Process EIP-2612 Permit payment (TIER 3)
 export async function POST(req: NextRequest) {
   const requestId = Math.random().toString(36).substring(7)
-  console.log(`\\n[/PONG2:${requestId}] ===== NEW REQUEST =====`)
-  console.log(`[/PONG2:${requestId}] Tier: ${TIER_AMOUNT} USD1 → ${PONG_ALLOCATION} PONG`)
-  console.log(`[/PONG2:${requestId}] Timestamp:`, new Date().toISOString())
+  console.log(`\\n[/pong10:${requestId}] ===== NEW REQUEST =====`)
+  console.log(`[/pong10:${requestId}] Tier: ${TIER_AMOUNT} USD1 → ${PONG_ALLOCATION} PONG`)
+  console.log(`[/pong10:${requestId}] Timestamp:`, new Date().toISOString())
 
   try {
     // Check for X-PAYMENT header (x402 protocol)
     const xPaymentHeader = req.headers.get('X-PAYMENT')
 
     if (xPaymentHeader) {
-      console.log(`[/PONG2:${requestId}] X-PAYMENT header detected - processing payment`)
+      console.log(`[/pong10:${requestId}] X-PAYMENT header detected - processing payment`)
       return await handlePaymentSettlement(requestId, xPaymentHeader)
     }
 
@@ -242,8 +243,8 @@ export async function POST(req: NextRequest) {
     const body = await req.json()
     const { owner } = body
 
-    console.log(`[/PONG2:${requestId}] No X-PAYMENT header - generating challenge`)
-    console.log(`[/PONG2:${requestId}] Owner:`, owner)
+    console.log(`[/pong10:${requestId}] No X-PAYMENT header - generating challenge`)
+    console.log(`[/pong10:${requestId}] Owner:`, owner)
 
     if (!owner || !/^0x[a-fA-F0-9]{40}$/.test(owner)) {
       return NextResponse.json(
@@ -254,7 +255,7 @@ export async function POST(req: NextRequest) {
 
     // Get facilitator address (spender in permit)
     const facilitator = getWalletClient().account.address
-    console.log(`[/PONG2:${requestId}] Facilitator address:`, facilitator)
+    console.log(`[/pong10:${requestId}] Facilitator address:`, facilitator)
 
     // Try to read EIP-5267 eip712Domain() first - this is the MOST RELIABLE way!
     let tokenName = TOKEN_NAME_FALLBACK
@@ -273,14 +274,14 @@ export async function POST(req: NextRequest) {
       tokenVersion = domain[2] // version
       domainChainId = Number(domain[3]) // chainId
 
-      console.log(`[/PONG2:${requestId}] ✅✅✅ EIP-5267 eip712Domain() SUCCESS:`)
-      console.log(`[/PONG2:${requestId}]   Name: "${tokenName}"`)
-      console.log(`[/PONG2:${requestId}]   Version: "${tokenVersion}"`)
-      console.log(`[/PONG2:${requestId}]   ChainId: ${domainChainId}`)
-      console.log(`[/PONG2:${requestId}]   VerifyingContract: ${domain[4]}`)
+      console.log(`[/pong10:${requestId}] ✅✅✅ EIP-5267 eip712Domain() SUCCESS:`)
+      console.log(`[/pong10:${requestId}]   Name: "${tokenName}"`)
+      console.log(`[/pong10:${requestId}]   Version: "${tokenVersion}"`)
+      console.log(`[/pong10:${requestId}]   ChainId: ${domainChainId}`)
+      console.log(`[/pong10:${requestId}]   VerifyingContract: ${domain[4]}`)
     } catch (e: any) {
-      console.error(`[/PONG2:${requestId}] ❌ eip712Domain() failed:`, e.message)
-      console.log(`[/PONG2:${requestId}] Falling back to individual reads...`)
+      console.error(`[/pong10:${requestId}] ❌ eip712Domain() failed:`, e.message)
+      console.log(`[/pong10:${requestId}] Falling back to individual reads...`)
 
       // Fallback to individual reads
       try {
@@ -289,9 +290,9 @@ export async function POST(req: NextRequest) {
           abi: usd1Abi,
           functionName: 'name',
         })
-        console.log(`[/PONG2:${requestId}] ✅ name():`, tokenName)
+        console.log(`[/pong10:${requestId}] ✅ name():`, tokenName)
       } catch {
-        console.log(`[/PONG2:${requestId}] ⚠️  Using fallback name:`, TOKEN_NAME_FALLBACK)
+        console.log(`[/pong10:${requestId}] ⚠️  Using fallback name:`, TOKEN_NAME_FALLBACK)
       }
 
       try {
@@ -300,9 +301,9 @@ export async function POST(req: NextRequest) {
           abi: usd1Abi,
           functionName: 'version',
         })
-        console.log(`[/PONG2:${requestId}] ✅ version():`, tokenVersion)
+        console.log(`[/pong10:${requestId}] ✅ version():`, tokenVersion)
       } catch {
-        console.log(`[/PONG2:${requestId}] ⚠️  Using fallback version:`, TOKEN_VERSION_FALLBACK)
+        console.log(`[/pong10:${requestId}] ⚠️  Using fallback version:`, TOKEN_VERSION_FALLBACK)
       }
     }
 
@@ -313,9 +314,9 @@ export async function POST(req: NextRequest) {
         abi: usd1Abi,
         functionName: 'DOMAIN_SEPARATOR',
       })
-      console.log(`[/PONG2:${requestId}] DOMAIN_SEPARATOR from contract:`, domainSeparator)
+      console.log(`[/pong10:${requestId}] DOMAIN_SEPARATOR from contract:`, domainSeparator)
     } catch (e: any) {
-      console.log(`[/PONG2:${requestId}] DOMAIN_SEPARATOR not available`)
+      console.log(`[/pong10:${requestId}] DOMAIN_SEPARATOR not available`)
     }
 
     // Read current nonce for the user from contract
@@ -326,7 +327,7 @@ export async function POST(req: NextRequest) {
       args: [owner as `0x${string}`],
     })
 
-    console.log(`[/PONG2:${requestId}] User nonce from contract:`, nonce.toString())
+    console.log(`[/pong10:${requestId}] User nonce from contract:`, nonce.toString())
 
     // Generate EIP-2612 Permit challenge
     const deadline = Math.floor(Date.now() / 1000) + CHALLENGE_MINUTES * 60
@@ -360,14 +361,14 @@ export async function POST(req: NextRequest) {
       deadline: BigInt(deadline), // uint256 as BigInt
     }
 
-    console.log(`[/PONG2:${requestId}] ===== EIP-2612 PERMIT DETAILS =====`)
-    console.log(`[/PONG2:${requestId}] Domain:`, {
+    console.log(`[/pong10:${requestId}] ===== EIP-2612 PERMIT DETAILS =====`)
+    console.log(`[/pong10:${requestId}] Domain:`, {
       name: tokenName,
       version: tokenVersion,
       chainId: domainChainId,
       verifyingContract: USD1_TOKEN,
     })
-    console.log(`[/PONG2:${requestId}] Values:`, {
+    console.log(`[/pong10:${requestId}] Values:`, {
       owner,
       spender: facilitator,
       value: PRICE_MINOR,
@@ -375,7 +376,7 @@ export async function POST(req: NextRequest) {
       deadline: deadline.toString(),
     })
 
-    console.log(`[/PONG2:${requestId}] ===== SENDING 402 RESPONSE =====\\n`)
+    console.log(`[/pong10:${requestId}] ===== SENDING 402 RESPONSE =====\\n`)
 
     // Convert BigInt to string for JSON serialization
     // Frontend will receive strings and pass to MetaMask as-is
