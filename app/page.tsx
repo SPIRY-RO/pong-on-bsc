@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { motion, AnimatePresence } from 'framer-motion'
+import Link from 'next/link'
 
 const EXPECTED_CHAIN_ID = '0x38' // BSC Mainnet (56 in hex)
 
@@ -709,6 +710,18 @@ export default function Home() {
           <div style={styles.apiNote}>
             Browser access shows paywall interface. API access returns 402 Payment Required with EIP-2612 challenge.
           </div>
+        </motion.div>
+
+        {/* About Link */}
+        <motion.div
+          style={styles.aboutSection}
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 1.4, duration: 0.5 }}
+        >
+          <Link href="/about" style={styles.aboutLink}>
+            📄 About & Disclaimer
+          </Link>
         </motion.div>
       </motion.footer>
     </div>
@@ -1481,6 +1494,26 @@ const styles: Record<string, React.CSSProperties> = {
     background: 'rgba(59, 130, 246, 0.05)',
     borderRadius: '8px',
     border: '1px solid rgba(59, 130, 246, 0.1)',
+  },
+
+  // About Section
+  aboutSection: {
+    marginTop: '32px',
+    paddingTop: '24px',
+    borderTop: '1px solid var(--border-color)',
+    textAlign: 'center',
+  },
+  aboutLink: {
+    display: 'inline-block',
+    fontSize: '14px',
+    color: 'var(--text-primary)',
+    textDecoration: 'none',
+    fontWeight: 600,
+    padding: '12px 24px',
+    background: 'var(--bg-elevated)',
+    border: '1px solid var(--border-color)',
+    borderRadius: '10px',
+    transition: 'all 0.3s ease',
   },
 }
 

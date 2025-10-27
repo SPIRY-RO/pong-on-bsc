@@ -28,7 +28,7 @@ Asta e tot! ✅
 
 #### Hardcoded (nu trebuie configurate):
 - **USD1_TOKEN**: `0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d`
-- **TREASURY**: `0xC0c241ba9A61303aa9A038788C68574172D3934e`
+- **TREASURY**: `0x8676532800bEF0c69F8Af0A989dBf3943B1b408A`
 - **Decimals**: 18 (toate calculele sunt automate)
 
 ### 4. Testează configurația
