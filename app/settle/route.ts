@@ -97,10 +97,34 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // Skip server-side signature verification - let contract verify it
-    // viem's verifyTypedData doesn't work reliably with our typed data structure
-    // The contract's permit() will revert with "ERC20Permit: invalid signature" if sig is bad
-    console.log(`[Settle:${settlementId}] Skipping server verification - contract will validate signature`)
+    // CRITICAL: Verify signature locally BEFORE submitting to blockchain (x402-permit pattern)
+    // This catches signature issues early and provides better error messages
+    console.log(`[Settle:${settlementId}] ===== VERIFYING SIGNATURE LOCALLY =====`)
+
+    // Read token name and version for EIP-712 domain
+    let tokenName: string
+    let tokenVersion: string
+
+    try {
+      [tokenName, tokenVersion] = await Promise.all([
+        publicClient.readContract({
+          address: USD1_TOKEN,
+          abi: usd1Abi,
+          functionName: 'name',
+        }) as Promise<string>,
+        publicClient.readContract({
+          address: USD1_TOKEN,
+          abi: usd1Abi,
+          functionName: 'version',
+        }) as Promise<string>,
+      ])
+      console.log(`[Settle:${settlementId}] Token: ${tokenName} v${tokenVersion}`)
+    } catch (e) {
+      // USD1 doesn't have version() - use default
+      tokenName = 'World Liberty Financial USD'
+      tokenVersion = '1'
+      console.log(`[Settle:${settlementId}] Using fallback: ${tokenName} v${tokenVersion}`)
+    }
 
     // Verify current nonce from contract
     const currentNonce = await publicClient.readContract({
