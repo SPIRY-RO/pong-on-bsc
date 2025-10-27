@@ -1,4 +1,5 @@
 // EIP-2612 Permit ABI for USD1 token
+// This ABI contains ONLY EIP-2612 Permit functions - NOT EIP-3009!
 export const usd1Abi = [
   {
     inputs: [],
@@ -70,6 +71,3 @@ export const usd1Abi = [
     type: 'function',
   },
 ] as const
-
-// Legacy export for compatibility
-export const eip3009Abi = usd1Abi

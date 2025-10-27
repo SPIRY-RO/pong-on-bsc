@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { publicClient, getWalletClient } from '@/lib/viem'
-import { eip3009Abi } from '@/lib/eip3009Abi'
+import { usd1Abi } from '@/lib/usd1Abi'
 
 // USD1 Token & Treasury (immutable, official addresses on BSC)
 const USD1_TOKEN = '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' as `0x${string}`
@@ -28,7 +28,7 @@ export async function GET() {
     try {
       const name = await publicClient.readContract({
         address: USD1_TOKEN,
-        abi: eip3009Abi,
+        abi: usd1Abi,
         functionName: 'name',
       })
       diagnostics.checks.tokenName = name

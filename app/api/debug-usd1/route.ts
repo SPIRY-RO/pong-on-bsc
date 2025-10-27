@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server'
 import { publicClient } from '@/lib/viem'
-import { usd1Abi } from '@/lib/eip3009Abi'
+import { usd1Abi } from '@/lib/usd1Abi'
 
 const USD1_TOKEN = '0x8d0D000Ee44948FC98c9B98A4FA4921476f08B0d' as `0x${string}`
 
