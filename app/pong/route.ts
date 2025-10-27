@@ -244,7 +244,7 @@ export async function POST(req: NextRequest) {
     const { owner } = body
 
     console.log(`[/pong:${requestId}] No X-PAYMENT header - generating challenge`)
-    console.log(`[/pong:${requestId}] Owner:`, owner)
+    console.log(`[/pong:${requestId}] Owner from request:`, owner)
 
     if (!owner || !/^0x[a-fA-F0-9]{40}$/.test(owner)) {
       return NextResponse.json(
@@ -255,7 +255,11 @@ export async function POST(req: NextRequest) {
 
     // Get facilitator address (spender in permit)
     const facilitator = getWalletClient().account.address
-    console.log(`[/pong:${requestId}] Facilitator address:`, facilitator)
+    console.log(`[/pong:${requestId}] Facilitator address (spender):`, facilitator)
+    console.log(`[/pong:${requestId}] 🔍 CRITICAL CHECK:`)
+    console.log(`[/pong:${requestId}]   Owner (user):  ${owner}`)
+    console.log(`[/pong:${requestId}]   Spender (facilitator): ${facilitator}`)
+    console.log(`[/pong:${requestId}]   These MUST be different!`)
 
     // Read name from contract - CRITICAL for EIP-712 domain
     let tokenName: string

@@ -130,12 +130,14 @@ export default function Home() {
     // CRITICAL: Check ref FIRST before any state
     if (paymentInProgressRef.current) {
       console.warn(`[Pay:${callId}] ⛔ BLOCKED - Already in progress`)
+      console.warn(`[Pay:${callId}] 🚨 DUPLICATE CALL PREVENTED! This should not happen!`)
       return
     }
 
     // Set ref immediately to block any other calls
     paymentInProgressRef.current = true
     console.log(`[Pay:${callId}] ✅ Lock acquired, proceeding...`)
+    console.log(`[Pay:${callId}] 🔒 NO MORE CALLS SHOULD HAPPEN UNTIL THIS COMPLETES`)
 
     if (!account) {
       console.error(`[Pay:${callId}] No account, aborting`)
@@ -187,6 +189,17 @@ export default function Home() {
 
       const challenge = await challengeRes.json()
       console.log(`[Pay:${callId}] Challenge received:`, challenge)
+      console.log(`[Pay:${callId}] 🔍 CHALLENGE DETAILS:`)
+      console.log(`[Pay:${callId}]   domain.name: "${challenge.domain.name}"`)
+      console.log(`[Pay:${callId}]   domain.version: "${challenge.domain.version}"`)
+      console.log(`[Pay:${callId}]   domain.chainId: ${challenge.domain.chainId}`)
+      console.log(`[Pay:${callId}]   domain.verifyingContract: ${challenge.domain.verifyingContract}`)
+      console.log(`[Pay:${callId}]   values.owner: ${challenge.values.owner}`)
+      console.log(`[Pay:${callId}]   values.spender: ${challenge.values.spender}`)
+      console.log(`[Pay:${callId}]   values.value: ${challenge.values.value}`)
+      console.log(`[Pay:${callId}]   values.nonce: ${challenge.values.nonce}`)
+      console.log(`[Pay:${callId}]   values.deadline: ${challenge.values.deadline}`)
+      console.log(`[Pay:${callId}] 🎯 Expected signer: ${challenge.values.owner}`)
       addStatus('✅ Challenge received')
 
       // Step 2: Sign with eth_signTypedData_v4
@@ -205,6 +218,7 @@ export default function Home() {
 
       console.log(`[Pay:${callId}] Account in state: ${account}`)
       console.log(`[Pay:${callId}] Current MetaMask account: ${currentAccount}`)
+      console.log(`[Pay:${callId}] Challenge owner: ${challenge.values.owner}`)
 
       if (!currentAccount) {
         throw new Error('No account selected in MetaMask')
@@ -219,21 +233,77 @@ export default function Home() {
         )
       }
 
+      // Log the EXACT data being sent to MetaMask for signing
+      const typedData = {
+        domain: challenge.domain,
+        types: challenge.types,
+        primaryType: challenge.primaryType,
+        message: challenge.values,
+      }
+
+      console.log(`[Pay:${callId}] ===== TYPED DATA BEING SIGNED =====`)
+      console.log(`[Pay:${callId}] Signing address:`, currentAccount)
+      console.log(`[Pay:${callId}] Domain:`, JSON.stringify(challenge.domain, null, 2))
+      console.log(`[Pay:${callId}] Message:`, JSON.stringify(challenge.values, null, 2))
+
       const signature = await window.ethereum.request({
         method: 'eth_signTypedData_v4',
         params: [
           currentAccount, // Use current account, not cached state
-          JSON.stringify({
-            domain: challenge.domain,
-            types: challenge.types,
-            primaryType: challenge.primaryType,
-            message: challenge.values,
-          }),
+          JSON.stringify(typedData),
         ],
       })
 
       console.log(`[Pay:${callId}] Signature received from MetaMask`)
       console.log(`[Pay:${callId}] Signature:`, signature)
+
+      // IMMEDIATE VERIFICATION: Check if signature is valid BEFORE sending to backend
+      try {
+        const ethers = await import('ethers')
+        const recoveredAddress = ethers.verifyTypedData(
+          {
+            name: challenge.domain.name,
+            version: challenge.domain.version,
+            chainId: challenge.domain.chainId,
+            verifyingContract: challenge.domain.verifyingContract,
+          },
+          {
+            Permit: [
+              { name: 'owner', type: 'address' },
+              { name: 'spender', type: 'address' },
+              { name: 'value', type: 'uint256' },
+              { name: 'nonce', type: 'uint256' },
+              { name: 'deadline', type: 'uint256' },
+            ],
+          },
+          {
+            owner: challenge.values.owner,
+            spender: challenge.values.spender,
+            value: challenge.values.value,
+            nonce: challenge.values.nonce,
+            deadline: challenge.values.deadline,
+          },
+          signature
+        )
+
+        console.log(`[Pay:${callId}] 🔍 SIGNATURE VERIFICATION (CLIENT-SIDE):`)
+        console.log(`[Pay:${callId}]   Expected signer: ${challenge.values.owner}`)
+        console.log(`[Pay:${callId}]   Recovered signer: ${recoveredAddress}`)
+        console.log(`[Pay:${callId}]   Match: ${recoveredAddress.toLowerCase() === challenge.values.owner.toLowerCase()}`)
+
+        if (recoveredAddress.toLowerCase() !== challenge.values.owner.toLowerCase()) {
+          console.error(`[Pay:${callId}] ❌ SIGNATURE MISMATCH DETECTED IN FRONTEND!`)
+          console.error(`[Pay:${callId}]   This means MetaMask signed with the wrong account or wrong data`)
+          throw new Error(
+            `Signature verification failed! Expected ${challenge.values.owner.slice(0, 6)}... but got ${recoveredAddress.slice(0, 6)}...`
+          )
+        }
+
+        console.log(`[Pay:${callId}] ✅ Signature verified successfully in frontend!`)
+      } catch (verifyError: any) {
+        console.error(`[Pay:${callId}] ❌ Frontend signature verification failed:`, verifyError.message)
+        throw verifyError
+      }
 
       addStatus('✅ Signature obtained')
 
