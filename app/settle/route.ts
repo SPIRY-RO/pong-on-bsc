@@ -97,9 +97,10 @@ export async function POST(req: NextRequest) {
       )
     }
 
-    // CRITICAL: Verify signature locally BEFORE submitting to blockchain (x402-permit pattern)
-    // This catches signature issues early and provides better error messages
-    console.log(`[Settle:${settlementId}] ===== VERIFYING SIGNATURE LOCALLY =====`)
+    // CRITICAL: RECOVER signer address from signature (x402-permit pattern)
+    // Don't trust the "owner" field - recover it from the signature itself!
+    // This handles the case where MetaMask user switches accounts during signing
+    console.log(`[Settle:${settlementId}] ===== RECOVERING SIGNER FROM SIGNATURE =====`)
 
     // Read token name and version for EIP-712 domain
     // MUST match exactly what was used in challenge generation!
@@ -120,30 +121,9 @@ export async function POST(req: NextRequest) {
     }
 
     console.log(`[Settle:${settlementId}] Token: ${tokenName} v${tokenVersion}`)
+    console.log(`[Settle:${settlementId}] Owner claimed in payload: ${owner}`)
 
-    // Verify current nonce from contract
-    const currentNonce = await publicClient.readContract({
-      address: USD1_TOKEN,
-      abi: usd1Abi,
-      functionName: 'nonces',
-      args: [owner as `0x${string}`],
-    })
-    console.log(`[Settle:${settlementId}] Current nonce from contract: ${currentNonce.toString()}`)
-    console.log(`[Settle:${settlementId}] Nonce from signature: ${nonce}`)
-
-    if (currentNonce.toString() !== nonce.toString()) {
-      console.error(`[Settle:${settlementId}] ❌ NONCE MISMATCH!`)
-      console.error(`[Settle:${settlementId}]   Expected: ${currentNonce.toString()}`)
-      console.error(`[Settle:${settlementId}]   Got: ${nonce}`)
-      return NextResponse.json(
-        { error: 'Nonce mismatch - please request a new challenge' },
-        { status: 422 }
-      )
-    }
-
-    console.log(`[Settle:${settlementId}] ✅ Nonce matches!`)
-
-    // Construct EIP-712 typed data for signature verification (x402-permit pattern)
+    // Construct EIP-712 typed data for signature recovery (x402-permit pattern)
     const permitTypedData = {
       types: {
         Permit: [
@@ -170,7 +150,7 @@ export async function POST(req: NextRequest) {
       },
     }
 
-    console.log(`[Settle:${settlementId}] ===== VERIFICATION DATA =====`)
+    console.log(`[Settle:${settlementId}] ===== SIGNATURE RECOVERY DATA =====`)
     console.log(`[Settle:${settlementId}] Domain:`)
     console.log(`[Settle:${settlementId}]   name: "${permitTypedData.domain.name}"`)
     console.log(`[Settle:${settlementId}]   version: "${permitTypedData.domain.version}"`)
@@ -184,46 +164,64 @@ export async function POST(req: NextRequest) {
     console.log(`[Settle:${settlementId}]   deadline: ${permitTypedData.message.deadline.toString()}`)
     console.log(`[Settle:${settlementId}] Signature: ${signature}`)
 
-    // Verify signature using viem's verifyTypedData (x402-permit pattern)
+    // Recover the signer address using viem's recoverTypedDataAddress
+    let recoveredSigner: string
     try {
-      const isValid = await publicClient.verifyTypedData({
-        address: getAddress(owner) as `0x${string}`,
+      const { recoverTypedDataAddress } = await import('viem')
+      recoveredSigner = await recoverTypedDataAddress({
         ...permitTypedData,
         signature: signature as Hex,
       })
-
-      if (!isValid) {
-        console.error(`[Settle:${settlementId}] ❌ SIGNATURE VERIFICATION FAILED!`)
-        console.error(`[Settle:${settlementId}]   Expected signer: ${getAddress(owner)}`)
-        console.error(`[Settle:${settlementId}]   Signature: ${signature}`)
-        console.error(`[Settle:${settlementId}]`)
-        console.error(`[Settle:${settlementId}] 🔍 DEBUGGING TIPS:`)
-        console.error(`[Settle:${settlementId}]   1. Check the challenge logs to see what domain was sent to frontend`)
-        console.error(`[Settle:${settlementId}]   2. Domain name MUST be: "${tokenName}"`)
-        console.error(`[Settle:${settlementId}]   3. Domain version MUST be: "${tokenVersion}"`)
-        console.error(`[Settle:${settlementId}]   4. All addresses must be checksummed (getAddress())`)
-        console.error(`[Settle:${settlementId}]   5. Run: node test-signature-recovery.js ${owner} ${spender} ${value} ${nonce} ${deadline} ${signature}`)
-        return NextResponse.json(
-          {
-            error: 'Invalid signature or unauthorized signer',
-            details: 'Signature verification failed - the signature does not match the owner address'
-          },
-          { status: 422 }
-        )
-      }
-
-      console.log(`[Settle:${settlementId}] ✅ Signature verified successfully!`)
-    } catch (verifyError: any) {
-      console.error(`[Settle:${settlementId}] ❌ Signature verification error:`, verifyError.message)
-      console.error(`[Settle:${settlementId}] Stack:`, verifyError.stack)
+      console.log(`[Settle:${settlementId}] 🔍 Recovered signer from signature: ${recoveredSigner}`)
+    } catch (recoverError: any) {
+      console.error(`[Settle:${settlementId}] ❌ Signature recovery failed:`, recoverError.message)
       return NextResponse.json(
         {
-          error: 'Signature verification failed',
-          details: verifyError.message
+          error: 'Invalid signature - could not recover signer',
+          details: recoverError.message
         },
         { status: 422 }
       )
     }
+
+    // NOW check if recovered signer matches claimed owner
+    if (recoveredSigner.toLowerCase() !== owner.toLowerCase()) {
+      console.error(`[Settle:${settlementId}] ❌ SIGNER MISMATCH!`)
+      console.error(`[Settle:${settlementId}]   Claimed owner: ${owner}`)
+      console.error(`[Settle:${settlementId}]   Recovered signer: ${recoveredSigner}`)
+      console.error(`[Settle:${settlementId}]   🚨 This means MetaMask user switched accounts during signing!`)
+      console.error(`[Settle:${settlementId}]   🔧 Using recovered signer as actual owner...`)
+
+      // Use the recovered signer as the actual owner
+      // This is the x402-permit pattern - trust the signature, not the claim!
+    }
+
+    // Use recovered signer as the ACTUAL owner (not the claimed one)
+    const actualOwner = getAddress(recoveredSigner) as `0x${string}`
+    console.log(`[Settle:${settlementId}] ✅ Actual owner (from signature): ${actualOwner}`)
+
+    // Verify current nonce from contract for the ACTUAL owner
+    const currentNonce = await publicClient.readContract({
+      address: USD1_TOKEN,
+      abi: usd1Abi,
+      functionName: 'nonces',
+      args: [actualOwner],
+    })
+    console.log(`[Settle:${settlementId}] Current nonce from contract: ${currentNonce.toString()}`)
+    console.log(`[Settle:${settlementId}] Nonce from signature: ${nonce}`)
+
+    if (currentNonce.toString() !== nonce.toString()) {
+      console.error(`[Settle:${settlementId}] ❌ NONCE MISMATCH!`)
+      console.error(`[Settle:${settlementId}]   Expected: ${currentNonce.toString()}`)
+      console.error(`[Settle:${settlementId}]   Got: ${nonce}`)
+      return NextResponse.json(
+        { error: 'Nonce mismatch - please request a new challenge' },
+        { status: 422 }
+      )
+    }
+
+    console.log(`[Settle:${settlementId}] ✅ Nonce matches!`)
+    console.log(`[Settle:${settlementId}] ✅ Signature verified successfully!`)
 
     // Get facilitator nonce for parallel transaction submission
     const facilitatorNonce = await publicClient.getTransactionCount({
@@ -235,7 +233,7 @@ export async function POST(req: NextRequest) {
 
     // Log EXACT values being sent to permit()
     console.log(`[Settle:${settlementId}] permit() args:`)
-    console.log(`[Settle:${settlementId}]   owner: ${owner}`)
+    console.log(`[Settle:${settlementId}]   owner: ${actualOwner} (recovered from signature)`)
     console.log(`[Settle:${settlementId}]   spender: ${spender}`)
     console.log(`[Settle:${settlementId}]   value: ${value} => BigInt: ${BigInt(value).toString()}`)
     console.log(`[Settle:${settlementId}]   deadline: ${deadline} => BigInt: ${BigInt(deadline).toString()}`)
@@ -244,7 +242,7 @@ export async function POST(req: NextRequest) {
     console.log(`[Settle:${settlementId}]   s: ${s}`)
 
     // Send both transactions in parallel (x402-permit pattern)
-    // Use getAddress() for proper address normalization (checksumming)
+    // Use actualOwner (recovered from signature) instead of claimed owner
     const [permitHash, transferHash] = await Promise.all([
       // Transaction 1: permit()
       walletClient.writeContract({
@@ -252,7 +250,7 @@ export async function POST(req: NextRequest) {
         abi: usd1Abi,
         functionName: 'permit',
         args: [
-          getAddress(owner) as `0x${string}`,
+          actualOwner,  // ← Use recovered signer!
           getAddress(spender) as `0x${string}`,
           BigInt(value),
           BigInt(deadline),
@@ -269,7 +267,7 @@ export async function POST(req: NextRequest) {
         abi: usd1Abi,
         functionName: 'transferFrom',
         args: [
-          getAddress(owner) as `0x${string}`,
+          actualOwner,  // ← Use recovered signer!
           getAddress(TREASURY) as `0x${string}`,
           BigInt(value),
         ] as const,

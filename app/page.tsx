@@ -161,12 +161,8 @@ export default function Home() {
     console.log(`[Pay:${callId}] ✅ Lock acquired, proceeding...`)
     console.log(`[Pay:${callId}] 🔒 NO MORE CALLS SHOULD HAPPEN UNTIL THIS COMPLETES`)
 
-    if (!account) {
-      console.error(`[Pay:${callId}] No account, aborting`)
-      paymentInProgressRef.current = false
-      addStatus('❌ Connect wallet first')
-      return
-    }
+    // NEW APPROACH: Don't check account state - we'll get it from MetaMask directly
+    // This eliminates the "connected account vs signing account" mismatch!
 
     setLoading(true)
     setStatus([])
@@ -190,14 +186,35 @@ export default function Home() {
     }
 
     try {
-      // Step 1: Request challenge
+      // Step 0: Get the CURRENTLY SELECTED account from MetaMask
+      // CRITICAL: Use eth_requestAccounts (not eth_accounts) to get the ACTIVE account
+      // eth_requestAccounts returns the account that's CURRENTLY SELECTED in MetaMask UI
+      // This is the account that WILL sign when we call eth_signTypedData_v4
+      if (!window.ethereum) {
+        throw new Error('MetaMask not found! Please install MetaMask.')
+      }
+
+      // eth_requestAccounts prompts user if needed and returns currently selected account
+      const activeAccounts = await window.ethereum.request({ method: 'eth_requestAccounts' })
+      const signingAccount = activeAccounts[0]?.toLowerCase()
+
+      if (!signingAccount) {
+        throw new Error('No account found in MetaMask. Please select an account.')
+      }
+
+      console.log(`[Pay:${callId}] 🎯 CURRENTLY SELECTED METAMASK ACCOUNT: ${signingAccount}`)
+      console.log(`[Pay:${callId}] This is the account that WILL sign the transaction!`)
+      console.log(`[Pay:${callId}] (Retrieved via eth_requestAccounts - guarantees current selection)`)
+
+      // Step 1: Request challenge FOR THE ACTIVE ACCOUNT
       addStatus('🔄 Requesting EIP-2612 Permit challenge...')
       console.log(`[Pay:${callId}] Fetching challenge from ${endpoint}`)
+      console.log(`[Pay:${callId}] Requesting challenge for owner: ${signingAccount}`)
 
       const challengeRes = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ owner: account }),
+        body: JSON.stringify({ owner: signingAccount }), // Use ACTIVE account, not state!
       })
 
       console.log(`[Pay:${callId}] Challenge response status:`, challengeRes.status)
@@ -224,186 +241,47 @@ export default function Home() {
       console.log(`[Pay:${callId}] 🎯 Expected signer: ${challenge.values.owner}`)
       addStatus('✅ Challenge received')
 
-      // Step 2: Sign with eth_signTypedData_v4
+      // Step 2: Sign using viem WalletClient (x402-permit pattern!)
+      // CRITICAL: Don't use raw window.ethereum.request()
+      // Use viem's WalletClient with custom(window.ethereum) transport
       setTransactionStage('signing')
       addStatus('🔏 Requesting signature...')
 
-      console.log(`[Pay:${callId}] ===== REQUESTING SIGNATURE FROM METAMASK =====`)
-      console.log(`[Pay:${callId}] This should appear ONLY ONCE!`)
+      console.log(`[Pay:${callId}] ===== CREATING VIEM WALLET CLIENT (x402-permit pattern) =====`)
+      console.log(`[Pay:${callId}] 🔑 Account from eth_requestAccounts: ${signingAccount}`)
+      console.log(`[Pay:${callId}] 📝 Challenge generated for owner: ${challenge.values.owner}`)
+      console.log(`[Pay:${callId}] ✅ Match check: ${signingAccount === challenge.values.owner.toLowerCase()}`)
 
-      // CRITICAL: Get the CURRENT account from MetaMask before signing
-      // User might have switched accounts after connecting!
-      const currentAccounts = await window.ethereum.request({
-        method: 'eth_accounts',
+      // Create viem WalletClient (exactly like x402-permit does)
+      const { createWalletClient, custom } = await import('viem')
+      const { bsc } = await import('viem/chains')
+
+      const walletClient = createWalletClient({
+        account: signingAccount as `0x${string}`,
+        chain: bsc,
+        transport: custom(window.ethereum)
       })
-      const currentAccount = currentAccounts[0]?.toLowerCase()
 
-      console.log(`[Pay:${callId}] Account in state: ${account}`)
-      console.log(`[Pay:${callId}] Current MetaMask account: ${currentAccount}`)
-      console.log(`[Pay:${callId}] Challenge owner: ${challenge.values.owner}`)
+      console.log(`[Pay:${callId}] ✅ Viem WalletClient created`)
+      console.log(`[Pay:${callId}] ✅ Account: ${walletClient.account.address}`)
 
-      if (!currentAccount) {
-        throw new Error('No account selected in MetaMask')
-      }
-
-      if (currentAccount !== account) {
-        console.warn(`[Pay:${callId}] ⚠️ ACCOUNT MISMATCH DETECTED!`)
-        console.warn(`[Pay:${callId}]   Connected: ${account}`)
-        console.warn(`[Pay:${callId}]   Current:   ${currentAccount}`)
-        throw new Error(
-          `Account mismatch! You switched MetaMask accounts. Please refresh and reconnect with ${currentAccount.slice(0, 6)}...${currentAccount.slice(-4)}`
-        )
-      }
-
-      // Log the EXACT data being sent to MetaMask for signing
+      // Build typed data for signing (x402-permit format)
       const typedData = {
         domain: challenge.domain,
         types: challenge.types,
-        primaryType: challenge.primaryType,
+        primaryType: challenge.primaryType as 'Permit',
         message: challenge.values,
       }
 
-      console.log(`[Pay:${callId}] ===== TYPED DATA BEING SIGNED =====`)
-      console.log(`[Pay:${callId}] Signing address:`, currentAccount)
+      console.log(`[Pay:${callId}] ===== SIGNING WITH VIEM WALLETCLIENT =====`)
       console.log(`[Pay:${callId}] Domain:`, JSON.stringify(challenge.domain, null, 2))
       console.log(`[Pay:${callId}] Message:`, JSON.stringify(challenge.values, null, 2))
 
-      // CRITICAL: Verify the account one more time before signing
-      console.log(`[Pay:${callId}] 🚨 FINAL VERIFICATION BEFORE SIGNING:`)
-      console.log(`[Pay:${callId}]   Current MetaMask account: ${currentAccount}`)
-      console.log(`[Pay:${callId}]   Challenge owner: ${challenge.values.owner.toLowerCase()}`)
-      console.log(`[Pay:${callId}]   Challenge spender: ${challenge.values.spender.toLowerCase()}`)
-      console.log(`[Pay:${callId}]   Match: ${currentAccount === challenge.values.owner.toLowerCase()}`)
+      // Sign using viem's signTypedData (NOT raw eth_signTypedData_v4!)
+      const signature = await walletClient.signTypedData(typedData)
 
-      if (currentAccount !== challenge.values.owner.toLowerCase()) {
-        console.error(`[Pay:${callId}] ❌ ACCOUNT MISMATCH!`)
-        console.error(`[Pay:${callId}]   MetaMask has: ${currentAccount}`)
-        console.error(`[Pay:${callId}]   Challenge expects: ${challenge.values.owner.toLowerCase()}`)
-        throw new Error(
-          `Account mismatch! MetaMask is on ${currentAccount.slice(0, 6)}... but challenge expects ${challenge.values.owner.slice(0, 6)}...`
-        )
-      }
-
-      // CRITICAL: Force account selection to ensure correct account signs
-      // Request fresh permissions to show account selector
-      addStatus('🔄 Please select your account in MetaMask...')
-
-      try {
-        // This will show MetaMask account selector
-        const selectedAccounts = await window.ethereum.request({
-          method: 'wallet_requestPermissions',
-          params: [{
-            eth_accounts: {},
-          }],
-        }).then(() =>
-          window.ethereum.request({ method: 'eth_accounts' })
-        )
-
-        const selectedAccount = selectedAccounts[0]?.toLowerCase()
-        console.log(`[Pay:${callId}] User selected account: ${selectedAccount}`)
-        console.log(`[Pay:${callId}] Challenge expects: ${challenge.values.owner.toLowerCase()}`)
-
-        if (!selectedAccount) {
-          throw new Error('No account selected in MetaMask')
-        }
-
-        if (selectedAccount !== challenge.values.owner.toLowerCase()) {
-          alert(
-            `❌ WRONG ACCOUNT SELECTED!\n\n` +
-            `You selected: ${selectedAccount}\n\n` +
-            `But the challenge is for: ${challenge.values.owner}\n\n` +
-            `Please try again and select the CORRECT account!`
-          )
-          throw new Error(`Wrong account selected. Expected ${challenge.values.owner} but got ${selectedAccount}`)
-        }
-
-        addStatus('✅ Correct account selected!')
-        console.log(`[Pay:${callId}] ✅ Correct account selected, proceeding to sign...`)
-
-      } catch (permError: any) {
-        if (permError.code === 4001) {
-          throw new Error('User rejected account selection')
-        }
-        console.error(`[Pay:${callId}] Permission request failed:`, permError)
-        // If permission request fails, continue but warn user
-        console.warn(`[Pay:${callId}] Could not verify account selection, continuing anyway...`)
-      }
-
-      const signature = await window.ethereum.request({
-        method: 'eth_signTypedData_v4',
-        params: [
-          currentAccount, // Use current account
-          JSON.stringify(typedData),
-        ],
-      })
-
-      console.log(`[Pay:${callId}] Signature received from MetaMask`)
+      console.log(`[Pay:${callId}] ✅ Signature received from viem WalletClient`)
       console.log(`[Pay:${callId}] Signature:`, signature)
-
-      // IMMEDIATE VERIFICATION: Check if signature is valid BEFORE sending to backend
-      try {
-        const ethers = await import('ethers')
-        const recoveredAddress = ethers.verifyTypedData(
-          {
-            name: challenge.domain.name,
-            version: challenge.domain.version,
-            chainId: challenge.domain.chainId,
-            verifyingContract: challenge.domain.verifyingContract,
-          },
-          {
-            Permit: [
-              { name: 'owner', type: 'address' },
-              { name: 'spender', type: 'address' },
-              { name: 'value', type: 'uint256' },
-              { name: 'nonce', type: 'uint256' },
-              { name: 'deadline', type: 'uint256' },
-            ],
-          },
-          {
-            owner: challenge.values.owner,
-            spender: challenge.values.spender,
-            value: challenge.values.value,
-            nonce: challenge.values.nonce,
-            deadline: challenge.values.deadline,
-          },
-          signature
-        )
-
-        console.log(`[Pay:${callId}] 🔍 SIGNATURE VERIFICATION (CLIENT-SIDE):`)
-        console.log(`[Pay:${callId}]   Expected signer: ${challenge.values.owner}`)
-        console.log(`[Pay:${callId}]   Recovered signer: ${recoveredAddress}`)
-        console.log(`[Pay:${callId}]   Match: ${recoveredAddress.toLowerCase() === challenge.values.owner.toLowerCase()}`)
-
-        if (recoveredAddress.toLowerCase() !== challenge.values.owner.toLowerCase()) {
-          console.error(`[Pay:${callId}] ❌ SIGNATURE MISMATCH DETECTED IN FRONTEND!`)
-          console.error(`[Pay:${callId}]   Expected: ${challenge.values.owner}`)
-          console.error(`[Pay:${callId}]   Got:      ${recoveredAddress}`)
-          console.error(`[Pay:${callId}]   This means MetaMask signed with a DIFFERENT account!`)
-
-          alert(
-            `❌ SIGNATURE ERROR!\n\n` +
-            `MetaMask signed with the WRONG account!\n\n` +
-            `Expected account:\n${challenge.values.owner}\n\n` +
-            `But MetaMask used:\n${recoveredAddress}\n\n` +
-            `SOLUTION:\n` +
-            `1. Open MetaMask\n` +
-            `2. Click the account icon (top right)\n` +
-            `3. SELECT the account: ${challenge.values.owner.slice(0, 8)}...\n` +
-            `4. Try the transaction again\n\n` +
-            `Make sure the CORRECT account has the checkmark (✓) in MetaMask!`
-          )
-
-          throw new Error(
-            `Signature verification failed! MetaMask signed with ${recoveredAddress.slice(0, 6)}... instead of ${challenge.values.owner.slice(0, 6)}...`
-          )
-        }
-
-        console.log(`[Pay:${callId}] ✅ Signature verified successfully in frontend!`)
-      } catch (verifyError: any) {
-        console.error(`[Pay:${callId}] ❌ Frontend signature verification failed:`, verifyError.message)
-        throw verifyError
-      }
-
       addStatus('✅ Signature obtained')
 
       // Step 3: Settle with EIP-2612 Permit
